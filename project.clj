@@ -38,6 +38,8 @@
 
   :lein-release {:scm :git, :deploy-via :lein-deploy}
 
+  :test-paths ["test" "test-resources"]
+
   :profiles {:dev {:dependencies [[puppetlabs/cthun "0.2.0-SNAPSHOT" :exclusions [joda-time com.taoensso/encore clj-time cheshire com.taoensso/nippy]]
                                   [puppetlabs/trapperkeeper "1.1.1" :classifier "test" :scope "test"]
                                   [puppetlabs/kitchensink ~ks-version :classifier "test" :scope "test"]]}})
