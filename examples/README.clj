@@ -7,7 +7,7 @@
 
 (defn cnc-request-handler
   [conn request]
-  (log/info "cnc handler got message" request)
+  (log/fatal "cnc handler got message" request)
   (let [response (-> (message/make-message)
                      (assoc :targets [(:sender request)]
                             :message_type "example/cnc_response")
@@ -15,28 +15,34 @@
                      (message/set-json-data {:response "Hello world"
                                              :request (:id request)}))]
     (client/send! conn response))
-  (log/info "cnc handler sent response"))
+  (log/fatal "cnc handler sent response"))
 
 (defn default-request-handler
   [conn request]
-  (log/info "Default handler got message" request))
+  (log/fatal "Default handler got message" request))
 
 ;; connecting with handlers
 (def conn (client/connect
            {:server "wss://localhost:8090/cthun/"
-            :cert "test-resources/ssl/certs/0006_controller.pem"
-            :private-key "test-resources/ssl/private_keys/0006_controller.pem"
-            :cacert "test-resources/ssl/certs/ca.pem"
+            :cert        "examples/controller_certs/crt.pem"
+            :private-key "examples/controller_certs/key.pem"
+            :cacert      "examples/controller_certs/ca_crt.pem"
+            :identity    "cth://0000_controller/demo-client"
             :type "demo-client"}
            {"example/cnc_request" cnc-request-handler
             :default default-request-handler}))
 
 ;; sending messages
+
+(log/fatal "### sending example/any_schema")
+
 (client/send! conn
               (-> (message/make-message)
                   (message/set-expiry 3 :seconds)
                   (assoc :targets ["cth://*/demo-client"]
                          :message_type "example/any_schema")))
+
+(log/fatal "### sending example/cnc_request")
 
 (client/send! conn
               (-> (message/make-message)
