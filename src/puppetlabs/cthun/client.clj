@@ -168,8 +168,7 @@
                                        (log/debug "sent associate session request")
                                        (reset! (:heartbeat @client-ref) (heartbeat client-ref)))
                          :on-error (fn [error]
-                                       (log/error "WebSocket error" error)
-                                       (reset! (:state @client-ref) :closed))
+                                       (log/error "WebSocket error" error))
                          :on-close (fn [code message]
                                      (log/debug "WebSocket closed" code message)
                                        (reset! (:state @client-ref) :closed))
