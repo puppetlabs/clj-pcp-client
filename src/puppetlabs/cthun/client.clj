@@ -2,9 +2,11 @@
   (:require [clojure.tools.logging :as log]
             [gniazdo.core :as ws]
             [puppetlabs.cthun.message :as message :refer [Message]]
+            [puppetlabs.cthun.protocol :as p]
             [puppetlabs.ssl-utils.core :as ssl-utils]
             [schema.core :as s])
-  (:import  (java.nio ByteBuffer)
+  (:import  (clojure.lang Atom)
+            (java.nio ByteBuffer)
             (org.eclipse.jetty.websocket.client WebSocketClient)
             (org.eclipse.jetty.util.ssl SslContextFactory)))
 
@@ -28,6 +30,10 @@
    :private-key s/Str
    :type s/Str})
 
+(def OutstandingPings
+  "schema for outstanding pings"
+  {p/MessageId Object})
+
 (def WSState
   "schema for an atom referring to a WebSocket connection state"
   (s/pred (comp ws-state? deref)))
@@ -44,6 +50,7 @@
           :state WSState
           :websocket Object
           :handlers Handlers
+          :outstanding-pings Atom ;; verified against OutstandingPings
           :heartbeat Object}))
 
 ;; private helpers for the ssl/websockets setup
@@ -84,6 +91,13 @@
                               :targets [id])
         (message/set-expiry 3 :seconds))))
 
+(s/defn ^:always-validate ^:private ping-handler
+  "Cancels off outstanding pings"
+  [client :- Client message :- Message]
+  (let [id                (:id message)
+        outstanding-pings (:outstanding-pings message)]
+    (log/debugf "got ping %s" id)
+    (swap! outstanding-pings dissoc id)))
 
 (defn fallback-handler
   "The handler to use when no handler matches"
@@ -107,7 +121,6 @@
                (message/encode (assoc message :sender (:identity client))))
   true)
 
-<<<<<<< HEAD
 (s/defn ^:always-validate ^:private make-identity :- p/Uri
   [certificate type]
   (let [x509     (ssl-utils/pem->cert certificate)
@@ -121,12 +134,16 @@
         type (:type params)
         identity (make-identity cert type)
         client (promise)
-=======
-(defn- ping!
+
+(s/defn ^:always-validate ^:private ping!
   "ping the broker"
-  [client-ref]
-  (log/debug "sending heartbeat ping")
-  (send! @client-ref (ping-message client-ref)))
+  [client :- Client]
+  (let [ping              (ping-message client)
+        id                (:id ping)
+        outstanding-pings (:outstanding-pings client)]
+    (log/debug "sending heartbeat ping")
+    (swap! outstanding-pings assoc id id)
+    (send! client ping)))
 
 (defn- heartbeat
   "Starts the WebSocket heartbeat task that keep the current connection alive
@@ -153,7 +170,7 @@
 (s/defn ^:always-validate connect :- Client
   [params :- ConnectParams handlers :- Handlers]
   (let [client-ref (promise)
->>>>>>> (CTH-305) First cut of heartbeat task,  WS state, controller/agent example pair
+        handlers (assoc handlers "http://puppetlabs.com/ping" ping-handler)
         websocket (make-websocket-client params)
         conn (ws/connect (:server params)
                          :client websocket
@@ -172,17 +189,6 @@
                                        (log/debug "received text message")
                                        (dispatch-message @client-ref (message/decode (message/string->bytes text))))
                          :on-binary (fn [buffer offset count]
-<<<<<<< HEAD
-                                      (log/debug "bytes message" offset count)
-                                      (log/debug "got " (message/decode buffer))
-                                      (dispatch-message @client (message/decode buffer))))]
-    (deliver client (merge params
-                           {:identity identity
-                            :conn conn
-                            :websocket websocket
-                            :handlers handlers}))
-    @client))
-=======
                                       (log/debug "received bin message - offset/bytes:" offset count
                                                  "- chunk descriptors:" (message/decode buffer))
                                       (dispatch-message @client-ref (message/decode buffer))))]
@@ -190,9 +196,9 @@
                                       :state (atom :connecting)
                                       :websocket websocket
                                       :handlers handlers
+                                      :outstanding-pings (atom {} :validator (fn [v] (s/validate OutstandingPings v)))
                                       :heartbeat (atom (future))))
     @client-ref))
->>>>>>> (CTH-305) First cut of heartbeat task,  WS state, controller/agent example pair
 
 (s/defn ^:always-validate close :- s/Bool
   "Close the connection"

@@ -6,8 +6,9 @@
 ;; aliases to 'private' functions
 (def session-association-message #'puppetlabs.cthun.client/session-association-message)
 
-(def test-client
+(defn make-test-client
   "A dummied up client object"
+  []
   {:server ""
    :cacert ""
    :cert ""
@@ -17,11 +18,12 @@
    :conn ""
    :handlers {}
    :state (atom :initialized)
+   :outstanding-pings (atom {})
    :websocket ""
    :heartbeat ""})
 
 (deftest session-association-message-test
-  (let [message (session-association-message test-client)]
+  (let [message (session-association-message (make-test-client))]
     (testing "it yields a message"
       (is (map? message)))
     (testing "message with the correct type"
