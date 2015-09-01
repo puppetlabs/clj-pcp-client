@@ -30,10 +30,6 @@
    :private-key s/Str
    :type s/Str})
 
-(def OutstandingPings
-  "schema for outstanding pings"
-  {p/MessageId Object})
-
 (def WSState
   "schema for an atom referring to a WebSocket connection state"
   (s/pred (comp ws-state? deref)))
@@ -50,7 +46,7 @@
           :state WSState
           :websocket Object
           :handlers Handlers
-          :outstanding-pings Atom ;; verified against OutstandingPings
+          :outstanding-pings Atom
           :heartbeat Object
           :heartbeat-stop Atom ;; containing a promise that when delivered means should stop
           }))
@@ -94,12 +90,12 @@
         (message/set-expiry 3 :seconds))))
 
 (s/defn ^:always-validate ^:private ping-handler
-  "Cancels off outstanding pings"
+  "Any ping resets the outstanding pings counter"
   [client :- Client message :- Message]
   (let [id                (:id message)
         outstanding-pings (:outstanding-pings message)]
     (log/debugf "got ping %s" id)
-    (swap! outstanding-pings dissoc id)))
+    (reset! outstanding-pings 0)))
 
 (defn fallback-handler
   "The handler to use when no handler matches"
@@ -144,7 +140,7 @@
         id                (:id ping)
         outstanding-pings (:outstanding-pings client)]
     (log/debug "sending heartbeat ping")
-    (swap! outstanding-pings assoc id id)
+    (swap! outstanding-pings inc)
     (send! client ping)))
 
 (s/defn ^:always-validate ^:private heartbeat :- (s/pred future?)
@@ -193,7 +189,7 @@
                                :state (atom :connecting)
                                :websocket websocket
                                :handlers handlers
-                               :outstanding-pings (atom {} :validator (fn [v] (s/validate OutstandingPings v)))
+                               :outstanding-pings (atom 0)
                                :heartbeat-stop (atom (promise))
                                :heartbeat (atom (future))))
     @client-ref))
