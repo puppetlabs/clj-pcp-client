@@ -3,16 +3,30 @@
             [puppetlabs.cthun.client :refer :all]
             [puppetlabs.cthun.message :as message]))
 
+;; aliases to 'private' functions
+(def session-association-message #'puppetlabs.cthun.client/session-association-message)
+
+(def test-client
+  "A dummied up client object"
+  {:server ""
+   :cacert ""
+   :cert ""
+   :private-key ""
+   :identity ""
+   :type ""
+   :conn ""
+   :handlers {}
+   :state (atom :initialized)
+   :websocket ""
+   :heartbeat ""})
+
 (deftest session-association-message-test
-  (let [message (session-association-message {:identity "cth://lolcathost/agent"})]
+  (let [message (session-association-message test-client)]
     (testing "it yields a message"
       (is (map? message)))
     (testing "message with the correct type"
       (is (= "http://puppetlabs.com/associate_request"
-             (:message_type message))))
-    (testing "message with the right sender"
-      (is (= "cth://lolcathost/agent"
-             (:sender message))))))
+             (:message_type message))))))
 
 (deftest dispatch-message-test
   (with-redefs [puppetlabs.cthun.client/fallback-handler (fn [c m] "fallback")]

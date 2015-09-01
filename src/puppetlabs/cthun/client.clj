@@ -1,8 +1,7 @@
 (ns puppetlabs.cthun.client
   (:require [clojure.tools.logging :as log]
             [gniazdo.core :as ws]
-            [puppetlabs.cthun.message :as message]
-            [puppetlabs.cthun.protocol :as p]
+            [puppetlabs.cthun.message :as message :refer [Message]]
             [puppetlabs.ssl-utils.core :as ssl-utils]
             [schema.core :as s])
   (:import  (java.nio ByteBuffer)
@@ -69,25 +68,22 @@
     (.start client)
     client))
 
-(defn session-association-message
-  [client]
-  (-> (message/make-message)
-      (message/set-expiry 3 :seconds)
-      (assoc :sender (:identity client)
-             :message_type "http://puppetlabs.com/associate_request"
-             :targets ["cth:///server"])))
+(s/defn ^:always-validate ^:private session-association-message :- Message
+  [client :- Client]
+  (-> (message/make-message :message_type "http://puppetlabs.com/associate_request"
+                            :targets ["cth:///server"])
+      (message/set-expiry 3 :seconds)))
 
 ;; TODO(ale): use WebSocket ping / pong via Jetty WS; now, the ping response
 ;; should be displayed by the fallback-handler
 
-(defn ping-message
-      [client-ref]
-      (let [id (:identity @client-ref)]
-        (-> (message/make-message)
-            (message/set-expiry 3 :seconds)
-            (assoc :sender id
-                   :message_type "http://puppetlabs.com/ping"
-                   :targets [id]))))
+(s/defn ^:always-validate ^:private ping-message :- Message
+  [client :- Client]
+  (let [id (:identity client)]
+    (-> (message/make-message :message_type "http://puppetlabs.com/ping"
+                              :targets [id])
+        (message/set-expiry 3 :seconds))))
+
 
 (defn fallback-handler
   "The handler to use when no handler matches"
