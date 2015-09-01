@@ -192,29 +192,29 @@
                                       (log/debug "received bin message - offset/bytes:" offset count
                                                  "- chunk descriptors:" (message/decode buffer))
                                       (dispatch-message @client-ref (message/decode buffer))))]
-    (deliver client-ref (assoc params :conn conn
-                                      :state (atom :connecting)
-                                      :websocket websocket
-                                      :handlers handlers
-                                      :outstanding-pings (atom {} :validator (fn [v] (s/validate OutstandingPings v)))
-                                      :heartbeat (atom (future))))
+    (deliver client-ref (assoc params
+                               :conn conn
+                               :state (atom :connecting)
+                               :websocket websocket
+                               :handlers handlers
+                               :outstanding-pings (atom {} :validator (fn [v] (s/validate OutstandingPings v)))
+                               :heartbeat (atom (future))))
     @client-ref))
 
 (s/defn ^:always-validate close :- s/Bool
   "Close the connection"
   [client :- Client]
-  (if (not (future-done? (deref (:heartbeat client))))
-        (do
-          ;; TODO(ale): check this; it's meant to prevent the 1 min delay (see
-          ;; clj docs --> future), but it could interact with other libs
-          (log/debug "shutting down agents to avoid delays")
-          (shutdown-agents))
-        (log/debug "heartbeat task already finished"))
   (when ((deref (:state client)) #{:opening :open})
-        (log/debug "Closing")
-        (reset! (:state client) :closing)
-        (.stop (:websocket client))
-        (ws/close (:conn client)))
+    (log/debug "Closing")
+    (reset! (:state client) :closing)
+    (.stop (:websocket client))
+    (ws/close (:conn client)))
+
+  (if (not (future-done? @(:heartbeat client)))
+    (do
+      (log/debug "forcing cancel of future")
+      (future-cancel @(:heartbeat client)))
+    (log/debug "heartbeat task already finished"))
   true)
 
 ;; TODO(ale): consider moving the heartbeat pings into a separate monitor task
