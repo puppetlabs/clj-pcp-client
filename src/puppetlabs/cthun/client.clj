@@ -51,7 +51,9 @@
           :websocket Object
           :handlers Handlers
           :outstanding-pings Atom ;; verified against OutstandingPings
-          :heartbeat Object}))
+          :heartbeat Object
+          :heartbeat-stop Atom ;; containing a promise that when delivered means should stop
+          }))
 
 ;; private helpers for the ssl/websockets setup
 
@@ -145,23 +147,16 @@
     (swap! outstanding-pings assoc id id)
     (send! client ping)))
 
-(defn- heartbeat
-  "Starts the WebSocket heartbeat task that keep the current connection alive
-  as long as it's in 'open' state, by pinging the broker every 15 s.
-  Returns a reference to the task."
-  [client-ref]
+(s/defn ^:always-validate ^:private heartbeat :- (s/pred future?)
+  "Starts the WebSocket heartbeat task that keeps the current
+  connection alive as long as the 'heartbeat-stop' promise has not
+  been delivered.  Returns a reference to the task."
+  [client :- Client]
   (log/debug "WebSocket heartbeat task is about to start")
-  (let [counter 0]
-    (future
-      (loop [idx 30]
-            (when (= (deref (:state @client-ref)) :open)
-              (do
-                (Thread/sleep 500)
-                (if (neg? idx)
-                  (do
-                    (ping! client-ref)
-                    (recur 30))
-                  (recur (dec idx))))))
+  (future
+    (let [should-stop (deref (:heartbeat-stop client))]
+      (while (not (deref should-stop 15000 false))
+        (ping! client))
       (log/debug "WebSocket heartbeat task is about to finish"))))
 
 ;; TODO(richardc): the identity should be derived from the client
@@ -179,12 +174,13 @@
                                        (reset! (:state @client-ref) :open)
                                        (send! @client-ref (session-association-message @client-ref))
                                        (log/debug "sent associate session request")
-                                       (reset! (:heartbeat @client-ref) (heartbeat client-ref)))
+                                       (reset! (:heartbeat-stop @client-ref) (promise))
+                                       (reset! (:heartbeat @client-ref) (heartbeat @client-ref)))
                          :on-error (fn [error]
-                                       (log/error "WebSocket error" error))
+                                     (log/error "WebSocket error" error))
                          :on-close (fn [code message]
                                      (log/debug "WebSocket closed" code message)
-                                       (reset! (:state @client-ref) :closed))
+                                     (reset! (:state @client-ref) :closed))
                          :on-receive (fn [text]
                                        (log/debug "received text message")
                                        (dispatch-message @client-ref (message/decode (message/string->bytes text))))
@@ -198,21 +194,26 @@
                                :websocket websocket
                                :handlers handlers
                                :outstanding-pings (atom {} :validator (fn [v] (s/validate OutstandingPings v)))
+                               :heartbeat-stop (atom (promise))
                                :heartbeat (atom (future))))
     @client-ref))
 
 (s/defn ^:always-validate close :- s/Bool
   "Close the connection"
   [client :- Client]
+  (deliver @(:heartbeat-stop client) true)
+
   (when ((deref (:state client)) #{:opening :open})
     (log/debug "Closing")
     (reset! (:state client) :closing)
     (.stop (:websocket client))
     (ws/close (:conn client)))
 
+  ;; TODO(richardc) This should never be needed, delivering
+  ;; to heartbeat-stop should always make the future quit
   (if (not (future-done? @(:heartbeat client)))
     (do
-      (log/debug "forcing cancel of future")
+      (log/debug "forcing cancel of heartbeat future")
       (future-cancel @(:heartbeat client)))
     (log/debug "heartbeat task already finished"))
   true)

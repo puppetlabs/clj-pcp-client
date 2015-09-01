@@ -20,7 +20,8 @@
    :state (atom :initialized)
    :outstanding-pings (atom {})
    :websocket ""
-   :heartbeat ""})
+   :heartbeat ""
+   :heartbeat-stop (atom (promise))})
 
 (deftest session-association-message-test
   (let [message (session-association-message (make-test-client))]
