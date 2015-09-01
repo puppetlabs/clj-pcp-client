@@ -208,14 +208,6 @@
     (reset! (:state client) :closing)
     (.stop (:websocket client))
     (ws/close (:conn client)))
-
-  ;; TODO(richardc) This should never be needed, delivering
-  ;; to heartbeat-stop should always make the future quit
-  (if (not (future-done? @(:heartbeat client)))
-    (do
-      (log/debug "forcing cancel of heartbeat future")
-      (future-cancel @(:heartbeat client)))
-    (log/debug "heartbeat task already finished"))
   true)
 
 ;; TODO(ale): consider moving the heartbeat pings into a separate monitor task
