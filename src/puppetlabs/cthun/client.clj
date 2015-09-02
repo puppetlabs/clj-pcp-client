@@ -93,7 +93,7 @@
   "Any ping resets the outstanding pings counter"
   [client :- Client message :- Message]
   (let [id                (:id message)
-        outstanding-pings (:outstanding-pings message)]
+        outstanding-pings (:outstanding-pings client)]
     (log/debugf "got ping %s" id)
     (reset! outstanding-pings 0)))
 
