@@ -198,7 +198,8 @@
   "Close the connection"
   [client :- Client]
   (deliver @(:heartbeat-stop client) true)
-
+  ;; HERE(ale): without calling shutdown-agent, the client process gets stuck
+  ;; for 1 min before returning (check clojure docs --> future)
   (when ((deref (:state client)) #{:opening :open})
     (log/debug "Closing")
     (reset! (:state client) :closing)
