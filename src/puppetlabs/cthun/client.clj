@@ -46,7 +46,6 @@
           :state WSState
           :websocket Object
           :handlers Handlers
-          :outstanding-pings Atom
           :heartbeat Object
           :heartbeat-stop Atom ;; containing a promise that when delivered means should stop
           }))
@@ -78,24 +77,6 @@
   (-> (message/make-message :message_type "http://puppetlabs.com/associate_request"
                             :targets ["cth:///server"])
       (message/set-expiry 3 :seconds)))
-
-;; TODO(ale): use WebSocket ping / pong via Jetty WS; now, the ping response
-;; should be displayed by the fallback-handler
-
-(s/defn ^:always-validate ^:private ping-message :- Message
-  [client :- Client]
-  (let [id (:identity client)]
-    (-> (message/make-message :message_type "http://puppetlabs.com/ping"
-                              :targets [id])
-        (message/set-expiry 3 :seconds))))
-
-(s/defn ^:always-validate ^:private ping-handler
-  "Any ping resets the outstanding pings counter"
-  [client :- Client message :- Message]
-  (let [id                (:id message)
-        outstanding-pings (:outstanding-pings client)]
-    (log/debugf "got ping %s" id)
-    (reset! outstanding-pings 0)))
 
 (defn fallback-handler
   "The handler to use when no handler matches"
@@ -161,7 +142,6 @@
 (s/defn ^:always-validate connect :- Client
   [params :- ConnectParams handlers :- Handlers]
   (let [client-ref (promise)
-        handlers (assoc handlers "http://puppetlabs.com/ping" ping-handler)
         websocket (make-websocket-client params)
         conn (ws/connect (:server params)
                          :client websocket
@@ -189,7 +169,6 @@
                                :state (atom :connecting)
                                :websocket websocket
                                :handlers handlers
-                               :outstanding-pings (atom 0)
                                :heartbeat-stop (atom (promise))
                                :heartbeat (atom (future))))
     @client-ref))

@@ -18,7 +18,6 @@
    :conn ""
    :handlers {}
    :state (atom :initialized)
-   :outstanding-pings (atom 0)
    :websocket ""
    :heartbeat ""
    :heartbeat-stop (atom (promise))})
