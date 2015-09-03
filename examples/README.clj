@@ -27,7 +27,6 @@
              :cert        "test-resources/ssl/certs/client03.example.com.pem"
              :private-key "test-resources/ssl/private_keys/client03.example.com.pem"
              :cacert      "test-resources/ssl/certs/ca.pem"
-             :identity    "cth://client03.example.com/demo_client"
              :type        "demo_client"}
            {"example/cnc_request" cnc-request-handler
             :default default-request-handler}))

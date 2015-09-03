@@ -58,7 +58,6 @@
    :cert        "test-resources/ssl/certs/client02.example.com.pem"
    :private-key "test-resources/ssl/private_keys/client02.example.com.pem"
    :cacert      "test-resources/ssl/certs/ca.pem"
-   :identity    "cth://client02.example.com/agent"
    :type        "agent"})
 
 (def agent-handlers

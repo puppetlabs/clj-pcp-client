@@ -22,9 +22,8 @@
                :ssl-ca-cert  "./test-resources/ssl/ca/ca_crt.pem"
                :ssl-crl-path "./test-resources/ssl/ca/ca_crl.pem"}
 
-   :web-router-service
-              {:puppetlabs.cthun.broker.service/broker-service {:websocket "/pcp"
-                                                                :metrics "/"}}
+   :web-router-service {:puppetlabs.cthun.broker.service/broker-service {:websocket "/pcp"
+                                                                         :metrics "/"}}
 
    :metrics {:enabled true}
 
@@ -44,7 +43,6 @@
      :cert        (str "test-resources/ssl/certs/" controller-id ".example.com.pem")
      :private-key (str "test-resources/ssl/private_keys/" controller-id ".example.com.pem")
      :cacert      "test-resources/ssl/certs/ca.pem"
-     :identity    (str "cth://" controller-id ".example.com/demo-client")
      :type        "demo-client"}
     {"example/any_schema"  handler-function
      :default              default-request-handler}))

@@ -38,7 +38,6 @@
    :cert        "test-resources/ssl/certs/client01.example.com.pem"
    :private-key "test-resources/ssl/private_keys/client01.example.com.pem"
    :cacert      "test-resources/ssl/certs/ca.pem"
-   :identity    "cth://client01.example.com/example_controller"
    :type        "controller"})
 
 (def controller-handlers

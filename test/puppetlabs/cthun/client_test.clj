@@ -13,13 +13,13 @@
    :cacert ""
    :cert ""
    :private-key ""
-   :identity ""
+   :identity "cth://the_identity/the_type"
    :type ""
    :conn ""
    :handlers {}
    :state (atom :initialized)
    :websocket ""
-   :heartbeat ""
+   :heartbeat (atom ())
    :heartbeat-stop (promise)})
 
 (deftest session-association-message-test
@@ -49,5 +49,5 @@
 (def make-identity #'puppetlabs.cthun.client/make-identity)
 
 (deftest make-identity-test
-  (is (= "cth://cthun-server/test"
-         (make-identity "test-resources/ssl/certs/cthun-server.pem" "test"))))
+  (is (= "cth://broker.example.com/test"
+         (make-identity "test-resources/ssl/certs/broker.example.com.pem" "test"))))

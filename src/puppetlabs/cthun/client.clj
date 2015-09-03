@@ -42,11 +42,12 @@
 (def Client
   "schema for a client"
   (merge ConnectParams
-         {:conn Object
+         {:identity p/Uri
+          :conn Object
           :state WSState
           :websocket Object
           :handlers Handlers
-          :heartbeat Object
+          :heartbeat Atom
           :heartbeat-stop Object ;; promise that when delivered means should stop
           }))
 
@@ -78,6 +79,13 @@
                             :targets ["cth:///server"])
       (message/set-expiry 3 :seconds)))
 
+(s/defn ^:always-validate ^:private make-identity :- p/Uri
+  [certificate type]
+  (let [x509     (ssl-utils/pem->cert certificate)
+        cn       (ssl-utils/get-cn-from-x509-certificate x509)
+        identity (format "cth://%s/%s" cn type)]
+    identity))
+
 (defn fallback-handler
   "The handler to use when no handler matches"
   [client message]
@@ -92,7 +100,7 @@
                     fallback-handler)]
     (handler client message)))
 
-;; synchornous interface
+;; synchronous interface
 
 (s/defn ^:always-validate send! :- s/Bool
   [client :- Client message :- message/Message]
@@ -100,77 +108,68 @@
                (message/encode (assoc message :sender (:identity client))))
   true)
 
-(s/defn ^:always-validate ^:private make-identity :- p/Uri
-  [certificate type]
-  (let [x509     (ssl-utils/pem->cert certificate)
-        cn       (ssl-utils/get-cn-from-x509-certificate x509)
-        identity (format "cth://%s/%s" cn type)]
-    identity))
+(s/defn ^:always-validate ^:private ping!
+  "ping the broker"
+  [client :- Client]
+  (log/debug "Sending WebSocket ping")
+  (let [websocket (:websocket client)
+        sessions (.getOpenSessions websocket)]
+       (doseq [session sessions]
+              (.. session (getRemote) (sendPing (ByteBuffer/allocate 1))))))
+
+(s/defn ^:always-validate ^:private heartbeat
+  "Starts the WebSocket heartbeat task that keeps the current
+  connection alive as long as the 'heartbeat-stop' promise has not
+  been delivered.  Returns a reference to the task."
+  [client :- Client]
+  (log/debug "WebSocket heartbeat task is about to start")
+  (let [should-stop (:heartbeat-stop client)
+        websocket (:websocket client)
+        sessions (.getOpenSessions websocket)]
+       (while (not (deref should-stop 15000 false))
+              (log/debug "Sending WebSocket ping")
+              (doseq [session sessions]
+                     (.. session (getRemote) (sendPing (ByteBuffer/allocate 1)))))
+       (log/debug "WebSocket heartbeat task is about to finish")))
 
 (s/defn ^:always-validate connect :- Client
   [params :- ConnectParams handlers :- Handlers]
   (let [cert (:cert params)
         type (:type params)
         identity (make-identity cert type)
-        client (promise)
-
-(s/defn ^:always-validate ^:private ping!
-  "ping the broker"
-  [client :- Client]
-  (log/debug "Sending WebSocket ping")
-  (let [websocket (:websocket client)
-        sessions (.getOpenSessions websocket)
-        session (first sessions)]
-       (doseq [session sessions]
-              (.. session (getRemote) (sendPing (ByteBuffer/allocate 1))))))
-
-(s/defn ^:always-validate ^:private heartbeat :- (s/pred future?)
-  "Starts the WebSocket heartbeat task that keeps the current
-  connection alive as long as the 'heartbeat-stop' promise has not
-  been delivered.  Returns a reference to the task."
-  [client :- Client]
-  (log/debug "WebSocket heartbeat task is about to start")
-  (future
-    (let [should-stop (:heartbeat-stop client)]
-      (while (not (deref should-stop 15000 false))
-        (ping! client))
-      (log/debug "WebSocket heartbeat task is about to finish"))))
-
-;; TODO(richardc): the identity should be derived from the client
-;; certificate and the connection type.
-
-(s/defn ^:always-validate connect :- Client
-  [params :- ConnectParams handlers :- Handlers]
-  (let [client-ref (promise)
+        client-p (promise)
         websocket (make-websocket-client params)
         conn (ws/connect (:server params)
                          :client websocket
                          :on-connect (fn [session]
                                        (log/debug "WebSocket connected")
-                                       (reset! (:state @client-ref) :open)
-                                       (send! @client-ref (session-association-message @client-ref))
+                                       (reset! (:state @client-p) :open)
+                                       (send! @client-p (session-association-message @client-p))
                                        (log/debug "sent associate session request")
-                                       (reset! (:heartbeat @client-ref) (heartbeat @client-ref)))
+                                       (let [task (Thread. (fn [] (heartbeat @client-p)))]
+                                          (.start task)
+                                          (reset! (:heartbeat @client-p) task)))
                          :on-error (fn [error]
                                      (log/error "WebSocket error" error))
                          :on-close (fn [code message]
                                      (log/debug "WebSocket closed" code message)
-                                     (reset! (:state @client-ref) :closed))
+                                     (reset! (:state @client-p) :closed))
                          :on-receive (fn [text]
                                        (log/debug "received text message")
-                                       (dispatch-message @client-ref (message/decode (message/string->bytes text))))
+                                       (dispatch-message @client-p (message/decode (message/string->bytes text))))
                          :on-binary (fn [buffer offset count]
                                       (log/debug "received bin message - offset/bytes:" offset count
                                                  "- chunk descriptors:" (message/decode buffer))
-                                      (dispatch-message @client-ref (message/decode buffer))))]
-    (deliver client-ref (assoc params
-                               :conn conn
-                               :state (atom :connecting)
-                               :websocket websocket
-                               :handlers handlers
-                               :heartbeat-stop (promise)
-                               :heartbeat (atom (future))))
-    @client-ref))
+                                      (dispatch-message @client-p (message/decode buffer))))]
+    (deliver client-p (merge params
+                             {:identity identity
+                              :conn conn
+                              :state (atom :connecting)
+                              :websocket websocket
+                              :handlers handlers
+                              :heartbeat (atom ())
+                              :heartbeat-stop (promise)}))
+    @client-p))
 
 (s/defn ^:always-validate close :- s/Bool
   "Close the connection"
@@ -181,10 +180,7 @@
     (reset! (:state client) :closing)
     (.stop (:websocket client))
     (ws/close (:conn client)))
-  ;; HERE(ale): without calling shutdown-agent, the client process gets stuck
-  ;; for 1 min before returning - refer to clojuredocs:
-  ;; http://clojuredocs.org/clojure.core/future#example-542692c9c026201cdc326a7b)
-  (shutdown-agents)
   true)
 
-;; TODO(ale): consider moving the heartbeat pings into a separate monitor task
+;; TODO(ale): consider moving the heartbeat pings into a monitor task
+
