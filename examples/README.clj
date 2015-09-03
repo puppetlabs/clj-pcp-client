@@ -7,7 +7,7 @@
 
 (defn cnc-request-handler
   [conn request]
-  (log/fatal "cnc handler got message" request)
+  (log/info "cnc handler got message" request)
   (let [response (-> (message/make-message)
                      (assoc :targets [(:sender request)]
                             :message_type "example/cnc_response")
@@ -15,11 +15,11 @@
                      (message/set-json-data {:response "Hello world"
                                              :request (:id request)}))]
     (client/send! conn response))
-  (log/fatal "cnc handler sent response"))
+  (log/info "cnc handler sent response"))
 
 (defn default-request-handler
   [conn request]
-  (log/fatal "Default handler got message" request))
+  (log/info "Default handler got message" request))
 
 ;; connecting with handlers
 (def conn (client/connect
@@ -34,7 +34,7 @@
 
 ;; sending messages
 
-(log/fatal "### sending example/any_schema")
+(log/info "### sending example/any_schema")
 
 (client/send! conn
               (-> (message/make-message)
@@ -42,7 +42,7 @@
                   (assoc :targets ["cth://*/demo-client"]
                          :message_type "example/any_schema")))
 
-(log/fatal "### sending example/cnc_request")
+(log/info "### sending example/cnc_request")
 
 (client/send! conn
               (-> (message/make-message)

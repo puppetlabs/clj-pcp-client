@@ -1,7 +1,5 @@
 ;; Clojure script for a trivial agent, to be executed with 'lein exec -p'
 
-;; TODO: configure log level and avoid logging at error lv
-
 (ns example-agent
     (:require [clojure.tools.logging :as log]
       [puppetlabs.cthun.client :as client]
@@ -9,22 +7,22 @@
 
 (defn associate-session-handler
       [conn msg]
-      (log/fatal "^^^ PCP associate session handler got message" msg))
+      (log/info "^^^ PCP associate session handler got message" msg))
 
 (defn pcp-error-handler
       [conn msg]
-      (log/fatal "^^^ PCP error handler got message" msg
+      (log/warn "^^^ PCP error handler got message" msg
                  "\n  Description: " (:description (message/get-json-data msg))))
 
 (defn request-handler
       [conn request]
-      (log/fatal "&&& request handler got message" request)
+      (log/info "&&& request handler got message" request)
       (let [request-data (message/get-json-data request)
             requester (:sender request)]
            (if-let [action (:action request-data)]
                    (if (= action "demo")
                      (do
-                       (log/fatal "### sending back DEMO response")
+                       (log/info "### sending back DEMO response")
                        (client/send!
                          conn
                          (-> (message/make-message)
@@ -33,7 +31,7 @@
                                     :message_type "example/response")
                              (message/set-json-data {:demo "Hey, here's my demo!"}))))
                      (do
-                       (log/fatal "### sending back DEFAULT response")
+                       (log/info "### sending back DEFAULT response")
                        (client/send!
                          conn
                          (-> (message/make-message)
@@ -42,7 +40,7 @@
                                     :message_type "example/response")
                              (message/set-json-data {:default "I don't know this action..."})))))
                    (do
-                     (log/fatal "### sending back ERROR message")
+                     (log/info "### sending back ERROR message")
                      (client/send!
                        conn
                        (-> (message/make-message)
@@ -53,7 +51,7 @@
 
 (defn default-msg-handler
       [conn msg]
-      (log/fatal "Default handler got message" msg))
+      (log/info "Default handler got message" msg))
 
 (def agent-params
   {:server      "wss://localhost:8090/pcp/"
@@ -72,11 +70,11 @@
 (defn start
   "Connect to the broker and wait for requests"
   []
-  (log/fatal "### connecting")
+  (log/info "### connecting")
   (let [agent (client/connect agent-params agent-handlers)]
-       (log/fatal "### connected")
+       (log/info "### connected")
        (while (not ((deref (:state agent)) #{:closing :closed}))
               (Thread/sleep 1000))
-       (log/fatal "### connection dropped - terminating")))
+       (log/info "### connection dropped - terminating")))
 
 (start)
