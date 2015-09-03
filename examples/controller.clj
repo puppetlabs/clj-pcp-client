@@ -36,11 +36,11 @@
   (log/fatal "&&& Default handler got message" msg))
 
 (def controller-params
-  {:server      "wss://localhost:8090/cthun/"
-   :cert        "examples/controller_certs/crt.pem"
-   :private-key "examples/controller_certs/key.pem"
-   :cacert      "examples/controller_certs/ca_crt.pem"
-   :identity    "cth://0000_controller/example_controller"
+  {:server      "wss://localhost:8090/pcp/"
+   :cert        "test-resources/ssl/certs/client01.example.com.pem"
+   :private-key "test-resources/ssl/private_keys/client01.example.com.pem"
+   :cacert      "test-resources/ssl/certs/ca.pem"
+   :identity    "cth://client01.example.com/example_controller"
    :type        "controller"})
 
 (def controller-handlers

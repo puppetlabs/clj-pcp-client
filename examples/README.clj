@@ -23,12 +23,12 @@
 
 ;; connecting with handlers
 (def conn (client/connect
-           {:server "wss://localhost:8090/cthun/"
-            :cert        "examples/controller_certs/crt.pem"
-            :private-key "examples/controller_certs/key.pem"
-            :cacert      "examples/controller_certs/ca_crt.pem"
-            :identity    "cth://0000_controller/demo-client"
-            :type "demo-client"}
+            {:server      "wss://localhost:8090/pcp/"
+             :cert        "test-resources/ssl/certs/client03.example.com.pem"
+             :private-key "test-resources/ssl/private_keys/client03.example.com.pem"
+             :cacert      "test-resources/ssl/certs/ca.pem"
+             :identity    "cth://client03.example.com/demo_client"
+             :type        "demo_client"}
            {"example/cnc_request" cnc-request-handler
             :default default-request-handler}))
 
