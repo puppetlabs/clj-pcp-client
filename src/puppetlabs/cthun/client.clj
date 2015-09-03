@@ -136,12 +136,11 @@
 (s/defn ^:always-validate ^:private ping!
   "ping the broker"
   [client :- Client]
-  (let [ping              (ping-message client)
-        id                (:id ping)
-        outstanding-pings (:outstanding-pings client)]
-    (log/debug "sending heartbeat ping")
-    (swap! outstanding-pings inc)
-    (send! client ping)))
+  (let [websocket (:websocket client)
+        sessions (.getOpenSessions websocket)]
+    (doseq [session sessions]
+      (log/debug "Sending websocket ping")
+      (.. session (getRemote) (sendPing (ByteBuffer/allocate 1)))
 
 (s/defn ^:always-validate ^:private heartbeat :- (s/pred future?)
   "Starts the WebSocket heartbeat task that keeps the current
