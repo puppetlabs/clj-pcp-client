@@ -47,7 +47,7 @@
           :websocket Object
           :handlers Handlers
           :heartbeat Object
-          :heartbeat-stop Atom ;; containing a promise that when delivered means should stop
+          :heartbeat-stop Object ;; promise that when delivered means should stop
           }))
 
 ;; private helpers for the ssl/websockets setup
@@ -131,7 +131,7 @@
   [client :- Client]
   (log/debug "WebSocket heartbeat task is about to start")
   (future
-    (let [should-stop (deref (:heartbeat-stop client))]
+    (let [should-stop (:heartbeat-stop client)]
       (while (not (deref should-stop 15000 false))
         (ping! client))
       (log/debug "WebSocket heartbeat task is about to finish"))))
@@ -150,7 +150,6 @@
                                        (reset! (:state @client-ref) :open)
                                        (send! @client-ref (session-association-message @client-ref))
                                        (log/debug "sent associate session request")
-                                       (reset! (:heartbeat-stop @client-ref) (promise))
                                        (reset! (:heartbeat @client-ref) (heartbeat @client-ref)))
                          :on-error (fn [error]
                                      (log/error "WebSocket error" error))
@@ -169,21 +168,23 @@
                                :state (atom :connecting)
                                :websocket websocket
                                :handlers handlers
-                               :heartbeat-stop (atom (promise))
+                               :heartbeat-stop (promise)
                                :heartbeat (atom (future))))
     @client-ref))
 
 (s/defn ^:always-validate close :- s/Bool
   "Close the connection"
   [client :- Client]
-  (deliver @(:heartbeat-stop client) true)
-  ;; HERE(ale): without calling shutdown-agent, the client process gets stuck
-  ;; for 1 min before returning (check clojure docs --> future)
+  (deliver (:heartbeat-stop client) true)
   (when ((deref (:state client)) #{:opening :open})
     (log/debug "Closing")
     (reset! (:state client) :closing)
     (.stop (:websocket client))
     (ws/close (:conn client)))
+  ;; HERE(ale): without calling shutdown-agent, the client process gets stuck
+  ;; for 1 min before returning - refer to clojuredocs:
+  ;; http://clojuredocs.org/clojure.core/future#example-542692c9c026201cdc326a7b)
+  (shutdown-agents)
   true)
 
 ;; TODO(ale): consider moving the heartbeat pings into a separate monitor task

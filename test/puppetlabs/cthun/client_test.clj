@@ -20,7 +20,7 @@
    :state (atom :initialized)
    :websocket ""
    :heartbeat ""
-   :heartbeat-stop (atom (promise))})
+   :heartbeat-stop (promise)})
 
 (deftest session-association-message-test
   (let [message (session-association-message (make-test-client))]
