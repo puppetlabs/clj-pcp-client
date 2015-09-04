@@ -13,13 +13,12 @@
    :cacert ""
    :cert ""
    :private-key ""
-   :identity "cth://the_identity/the_type"
    :type ""
+   :identity "cth://the_identity/the_type"
    :conn ""
-   :handlers {}
-   :state (atom :initialized)
+   :state (atom :connecting)
    :websocket ""
-   :heartbeat (atom ())
+   :handlers {}
    :heartbeat-stop (promise)})
 
 (deftest session-association-message-test

@@ -12,8 +12,7 @@
 
 ;; WebSocket connection state values
 
-(def ws-states #{:initialized
-                 :connecting
+(def ws-states #{:connecting
                  :open
                  :closing
                  :closed})
@@ -47,7 +46,6 @@
           :state WSState
           :websocket Object
           :handlers Handlers
-          :heartbeat Atom
           :heartbeat-stop Object ;; promise that when delivered means should stop
           }))
 
@@ -79,13 +77,6 @@
                             :targets ["cth:///server"])
       (message/set-expiry 3 :seconds)))
 
-(s/defn ^:always-validate ^:private make-identity :- p/Uri
-  [certificate type]
-  (let [x509     (ssl-utils/pem->cert certificate)
-        cn       (ssl-utils/get-cn-from-x509-certificate x509)
-        identity (format "cth://%s/%s" cn type)]
-    identity))
-
 (defn fallback-handler
   "The handler to use when no handler matches"
   [client message]
@@ -108,14 +99,12 @@
                (message/encode (assoc message :sender (:identity client))))
   true)
 
-(s/defn ^:always-validate ^:private ping!
-  "ping the broker"
-  [client :- Client]
-  (log/debug "Sending WebSocket ping")
-  (let [websocket (:websocket client)
-        sessions (.getOpenSessions websocket)]
-       (doseq [session sessions]
-              (.. session (getRemote) (sendPing (ByteBuffer/allocate 1))))))
+(s/defn ^:always-validate ^:private make-identity :- p/Uri
+        [certificate type]
+        (let [x509     (ssl-utils/pem->cert certificate)
+              cn       (ssl-utils/get-cn-from-x509-certificate x509)
+              identity (format "cth://%s/%s" cn type)]
+          identity))
 
 (s/defn ^:always-validate ^:private heartbeat
   "Starts the WebSocket heartbeat task that keeps the current
@@ -124,12 +113,12 @@
   [client :- Client]
   (log/debug "WebSocket heartbeat task is about to start")
   (let [should-stop (:heartbeat-stop client)
-        websocket (:websocket client)
-        sessions (.getOpenSessions websocket)]
+        websocket (:websocket client)]
        (while (not (deref should-stop 15000 false))
-              (log/debug "Sending WebSocket ping")
-              (doseq [session sessions]
-                     (.. session (getRemote) (sendPing (ByteBuffer/allocate 1)))))
+              (let [sessions (.getOpenSessions websocket)]
+                   (log/debug "Sending WebSocket ping")
+                   (doseq [session sessions]
+                          (.. session (getRemote) (sendPing (ByteBuffer/allocate 1))))))
        (log/debug "WebSocket heartbeat task is about to finish")))
 
 (s/defn ^:always-validate connect :- Client
@@ -137,39 +126,37 @@
   (let [cert (:cert params)
         type (:type params)
         identity (make-identity cert type)
-        client-p (promise)
+        client (promise)
         websocket (make-websocket-client params)
         conn (ws/connect (:server params)
                          :client websocket
                          :on-connect (fn [session]
                                        (log/debug "WebSocket connected")
-                                       (reset! (:state @client-p) :open)
-                                       (send! @client-p (session-association-message @client-p))
+                                       (reset! (:state @client) :open)
+                                       (send! @client (session-association-message @client))
                                        (log/debug "sent associate session request")
-                                       (let [task (Thread. (fn [] (heartbeat @client-p)))]
-                                          (.start task)
-                                          (reset! (:heartbeat @client-p) task)))
+                                       (let [task (Thread. (fn [] (heartbeat @client)))]
+                                          (.start task)))
                          :on-error (fn [error]
                                      (log/error "WebSocket error" error))
                          :on-close (fn [code message]
                                      (log/debug "WebSocket closed" code message)
-                                     (reset! (:state @client-p) :closed))
+                                     (reset! (:state @client) :closed))
                          :on-receive (fn [text]
                                        (log/debug "received text message")
-                                       (dispatch-message @client-p (message/decode (message/string->bytes text))))
+                                       (dispatch-message @client (message/decode (message/string->bytes text))))
                          :on-binary (fn [buffer offset count]
                                       (log/debug "received bin message - offset/bytes:" offset count
-                                                 "- chunk descriptors:" (message/decode buffer))
-                                      (dispatch-message @client-p (message/decode buffer))))]
-    (deliver client-p (merge params
-                             {:identity identity
-                              :conn conn
-                              :state (atom :connecting)
-                              :websocket websocket
-                              :handlers handlers
-                              :heartbeat (atom ())
-                              :heartbeat-stop (promise)}))
-    @client-p))
+                                                 "- message:" (message/decode buffer))
+                                      (dispatch-message @client (message/decode buffer))))]
+    (deliver client (merge params
+                           {:identity identity
+                            :conn conn
+                            :state (atom :connecting :validator ws-state?)
+                            :websocket websocket
+                            :handlers handlers
+                            :heartbeat-stop (promise)}))
+    @client))
 
 (s/defn ^:always-validate close :- s/Bool
   "Close the connection"
@@ -183,4 +170,3 @@
   true)
 
 ;; TODO(ale): consider moving the heartbeat pings into a monitor task
-
