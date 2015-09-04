@@ -72,7 +72,7 @@
   (log/info "### connecting")
   (let [agent (client/connect agent-params agent-handlers)]
        (log/info "### connected")
-       (while (not ((deref (:state agent)) #{:closing :closed}))
+       (while (not (or (client/closing? agent) (client/closed? agent)))
               (Thread/sleep 1000))
        (log/info "### connection dropped - terminating")))
 

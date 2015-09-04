@@ -49,6 +49,17 @@
           :heartbeat-stop Object ;; promise that when delivered means should stop
           }))
 
+;; connection state checkers
+
+(defmacro def-state-checker [f state] `(do (s/defn ^:always-validate ~f :- s/Bool
+                                             [client# :- Client]
+                                             (= @(:state client#) ~state))))
+
+(def-state-checker connecting? :connecting)
+(def-state-checker open?       :open)
+(def-state-checker closing?    :closing)
+(def-state-checker closed?     :closed)
+
 ;; private helpers for the ssl/websockets setup
 
 (defn- make-ssl-context

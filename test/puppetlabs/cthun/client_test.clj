@@ -21,6 +21,13 @@
    :handlers {}
    :heartbeat-stop (promise)})
 
+(deftest state-checkers-test
+     (let [client (make-test-client)]
+        (testing "successfully returns positive"
+           (is (connecting? client)))
+        (testing "successfully returns negative"
+           (is (not (open? client))))))
+
 (deftest session-association-message-test
   (let [message (session-association-message (make-test-client))]
     (testing "it yields a message"
