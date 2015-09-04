@@ -100,11 +100,11 @@
   true)
 
 (s/defn ^:always-validate ^:private make-identity :- p/Uri
-        [certificate type]
-        (let [x509     (ssl-utils/pem->cert certificate)
-              cn       (ssl-utils/get-cn-from-x509-certificate x509)
-              identity (format "cth://%s/%s" cn type)]
-          identity))
+  [certificate type]
+  (let [x509     (ssl-utils/pem->cert certificate)
+        cn       (ssl-utils/get-cn-from-x509-certificate x509)
+        identity (format "cth://%s/%s" cn type)]
+    identity))
 
 (s/defn ^:always-validate ^:private heartbeat
   "Starts the WebSocket heartbeat task that keeps the current
@@ -138,7 +138,7 @@
                                        (let [task (Thread. (fn [] (heartbeat @client)))]
                                           (.start task)))
                          :on-error (fn [error]
-                                     (log/error "WebSocket error" error))
+                                     (log/error error "WebSocket error"))
                          :on-close (fn [code message]
                                      (log/debug "WebSocket closed" code message)
                                      (reset! (:state @client) :closed))
