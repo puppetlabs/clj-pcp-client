@@ -4,7 +4,7 @@
             [puppetlabs.cthun.broker.service :refer [broker-service]]
             [puppetlabs.cthun.client :as client]
             [puppetlabs.cthun.message :as message]
-	    [puppetlabs.trapperkeeper.services.metrics.metrics-service :refer [metrics-service]]
+            [puppetlabs.trapperkeeper.services.metrics.metrics-service :refer [metrics-service]]
             [puppetlabs.trapperkeeper.services.webrouting.webrouting-service :refer [webrouting-service]]
             [puppetlabs.trapperkeeper.services.webserver.jetty9-service :refer [jetty9-service]]
             [puppetlabs.trapperkeeper.testutils.bootstrap :refer [with-app-with-config]]
@@ -14,17 +14,16 @@
 
 (def broker-config
   "A broker with ssl and own spool"
-  {:webserver {:ssl-host "127.0.0.1"
-               :ssl-port 8081
-               :client-auth "want"
-               :ssl-key "./test-resources/ssl/private_keys/cthun-server.pem"
-               :ssl-cert "./test-resources/ssl/certs/cthun-server.pem"
-               :ssl-ca-cert "./test-resources/ssl/ca/ca_crt.pem"
+  {:webserver {:ssl-host     "127.0.0.1"
+               :ssl-port     8081
+               :client-auth  "want"
+               :ssl-key      "./test-resources/ssl/private_keys/broker.example.com.pem"
+               :ssl-cert     "./test-resources/ssl/certs/broker.example.com.pem"
+               :ssl-ca-cert  "./test-resources/ssl/ca/ca_crt.pem"
                :ssl-crl-path "./test-resources/ssl/ca/ca_crl.pem"}
 
-   :web-router-service
-   {:puppetlabs.cthun.broker.service/broker-service {:websocket "/cthun"
-                                                     :metrics "/"}}
+   :web-router-service {:puppetlabs.cthun.broker.service/broker-service {:websocket "/pcp"
+                                                                         :metrics "/"}}
 
    :metrics {:enabled true}
 
@@ -39,13 +38,14 @@
 ;; connect a controller with handler functions
 (defn connect-controller
   [controller-id handler-function]
-  (client/connect {:server      "wss://localhost:8081/cthun/"
-                   :cert        (str "test-resources/ssl/certs/" controller-id ".pem")
-		   :private-key (str "test-resources/ssl/private_keys/" controller-id ".pem")
-		   :cacert      "test-resources/ssl/certs/ca.pem"
-		   :type        "demo-client"}
-		  {"example/any_schema"  handler-function
-		   :default              default-request-handler}))
+  (client/connect
+    {:server      "wss://localhost:8081/pcp/"
+     :cert        (str "test-resources/ssl/certs/" controller-id ".example.com.pem")
+     :private-key (str "test-resources/ssl/private_keys/" controller-id ".example.com.pem")
+     :cacert      "test-resources/ssl/certs/ca.pem"
+     :type        "demo-client"}
+    {"example/any_schema"  handler-function
+     :default              default-request-handler}))
 
 (deftest send-message-and-assert-received-unchanged-test
   (testing "binary payloads"
@@ -57,11 +57,11 @@
             message       (-> (message/make-message)
                               (message/set-expiry 3 :seconds)
                               (message/set-data (byte-array (.getBytes expected-data "UTF-8")))
-                              (assoc :targets      ["cth://0002_controller/demo-client"]
+                              (assoc :targets      ["cth://client02.example.com/demo-client"]
                                      :message_type "example/any_schema"))
             received      (promise)
-            sender        (connect-controller "0001_controller" (constantly true))
-            receiver      (connect-controller "0002_controller"
+            sender        (connect-controller "client01" (constantly true))
+            receiver      (connect-controller "client02"
                                               (fn [conn msg] (deliver received msg)))]
         (client/send! sender message)
         (deref received)
@@ -72,4 +72,4 @@
         (is (= (:message_type message) (:message_type @received)))
         (is (= (:expires message) (:expires @received)))
         (is (= (:targets message) (:targets @received)))
-        (is (= "cth://0001_controller/demo-client" (:sender @received)))))))
+        (is (= "cth://client01.example.com/demo-client" (:sender @received)))))))

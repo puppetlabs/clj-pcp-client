@@ -23,20 +23,25 @@
 
 ;; connecting with handlers
 (def conn (client/connect
-           {:server "wss://localhost:8090/cthun/"
-            :cert "test-resources/ssl/certs/0006_controller.pem"
-            :private-key "test-resources/ssl/private_keys/0006_controller.pem"
-            :cacert "test-resources/ssl/certs/ca.pem"
-            :type "demo-client"}
+            {:server      "wss://localhost:8090/pcp/"
+             :cert        "test-resources/ssl/certs/client03.example.com.pem"
+             :private-key "test-resources/ssl/private_keys/client03.example.com.pem"
+             :cacert      "test-resources/ssl/certs/ca.pem"
+             :type        "demo_client"}
            {"example/cnc_request" cnc-request-handler
             :default default-request-handler}))
 
 ;; sending messages
+
+(log/info "### sending example/any_schema")
+
 (client/send! conn
               (-> (message/make-message)
                   (message/set-expiry 3 :seconds)
                   (assoc :targets ["cth://*/demo-client"]
                          :message_type "example/any_schema")))
+
+(log/info "### sending example/cnc_request")
 
 (client/send! conn
               (-> (message/make-message)

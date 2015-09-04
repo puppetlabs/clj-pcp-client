@@ -5,11 +5,11 @@
         </encoder>
     </appender>
 
-    <logger name="puppetlabs" level="error"/>
-    <logger name="log4j.logger.org.eclipse.jetty.server" level="warn"/>
-    <logger name="log4j.logger.org.eclipse.jetty.util.log" level="warn"/>
-
-    <root level="error">
+    <root level="info">
         <appender-ref ref="STDOUT" />
     </root>
+
+    <logger name="log4j.logger.org.eclipse.jetty.server" level="warn"/>
+    <logger name="log4j.logger.org.eclipse.jetty.util.log" level="warn"/>
+    <logger name="puppetlabs" level="debug"/>
 </configuration>
