@@ -4,12 +4,19 @@ This is a feature and maintenance release
 
 * Added standard cljfmt alias
 * Added ASL 2.0 LICENSE
+* Added CONTRIBUTING.md in preparation to be an open project
 * Reworked ports in the examples to use the standard PCP port of 8142
 * [PCP-24](https://tickets.puppetlabs.com/browse/PCP-24) Added reconnection
   logic.
 * Updated pcp-broker dependency to 0.2.2 to get benefit of CTH-251 fixes.
 * [PCP-43](https://tickets.puppetlabs.com/browse/PCP-43) Refactored flow of
   client so it can be used with `with-open`.
+* [PCP-4](https://tickets.puppetlabs.com/browse/PCP-4) Now can wait for session
+  association.  Adds `(client/associating? client)`, `(client/associated? client)`,
+  and `(client/wait-for-assocation client timeout-ms)`.
+* [PCP-59](https://tickets.puppetlabs.com/browse/PCP-59) Removed extra state
+  checking.  Removes `(client/closing? client)` and `(client/closed? client)`.
+  Renames `(client/open? client)` to `(client/connected? client)`.
 
 ## 0.0.7
 
