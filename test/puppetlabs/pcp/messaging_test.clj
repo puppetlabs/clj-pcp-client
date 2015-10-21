@@ -4,6 +4,7 @@
             [puppetlabs.pcp.broker.service :refer [broker-service]]
             [puppetlabs.pcp.client :as client]
             [puppetlabs.pcp.message :as message]
+            [puppetlabs.trapperkeeper.services.authorization.authorization-service :refer [authorization-service]]
             [puppetlabs.trapperkeeper.services.metrics.metrics-service :refer [metrics-service]]
             [puppetlabs.trapperkeeper.services.webrouting.webrouting-service :refer [webrouting-service]]
             [puppetlabs.trapperkeeper.services.webserver.jetty9-service :refer [jetty9-service]]
@@ -14,7 +15,14 @@
 
 (def broker-config
   "A broker with ssl and own spool"
-  {:webserver {:ssl-host     "127.0.0.1"
+  {:authorization {:version 1
+                   :rules [{:name "allow all"
+                            :match-request {:type "regex"
+                                            :path "^/.*$"}
+                            :allow-unauthenticated true
+                            :sort-order 1}]}
+
+   :webserver {:ssl-host     "127.0.0.1"
                ;; Default port is 8142.  Use 8143 here so we don't clash.
                :ssl-port     8143
                :client-auth  "want"
@@ -52,7 +60,7 @@
   (testing "binary payloads"
     (with-app-with-config
       app
-      [broker-service jetty9-service webrouting-service metrics-service]
+      [authorization-service broker-service jetty9-service webrouting-service metrics-service]
       broker-config
       (let [expected-data "Hello World!Ѱ$£%^\"\t\r\n(*)"
             message       (-> (message/make-message)
@@ -81,7 +89,7 @@
     (is (not (client/connected? client)) "Should not be connected yet")
     (with-app-with-config
       app
-      [broker-service jetty9-service webrouting-service metrics-service]
+      [authorization-service broker-service jetty9-service webrouting-service metrics-service]
       broker-config
       (client/wait-for-connection client (* 40 1000))
       (is (client/connected? client) "Should now be connected"))
@@ -97,14 +105,14 @@
     (is (not (client/connected? client)) "Should not be connected yet")
     (with-app-with-config
       app
-      [broker-service jetty9-service webrouting-service metrics-service]
+      [authorization-service broker-service jetty9-service webrouting-service metrics-service]
       broker-config
       (client/wait-for-connection client (* 40 1000))
       (is (client/connected? client) "Should now be connected"))
     (is (not (client/connected? client)) "Should be disconnected")
     (with-app-with-config
       app
-      [broker-service jetty9-service webrouting-service metrics-service]
+      [authorization-service broker-service jetty9-service webrouting-service metrics-service]
       broker-config
       (client/wait-for-connection client (* 40 1000))
       (is (client/connected? client) "Should be reconnected"))))
@@ -112,7 +120,7 @@
 (deftest association-checkers-test
   (with-app-with-config
     app
-    [broker-service jetty9-service webrouting-service metrics-service]
+    [authorization-service broker-service jetty9-service webrouting-service metrics-service]
     broker-config
     (with-open [client (connect-client "client01" (constantly true))]
       (is (= client (client/wait-for-association client (* 40 1000))))
