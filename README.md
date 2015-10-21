@@ -1,21 +1,16 @@
-# clj-pcp-client
+## clj-pcp-client
 
 PCP client
 
 https://github.com/puppetlabs/pcp-specifications
 
+## Installation
 
-# Installation
+Releases of this project are distributed via clojars, to use it:
 
-The jar is distributed via the internal nexus server, to use it add
-the following to your project.clj
+[![Clojars Project](http://clojars.org/puppetlabs/pcp-client/latest-version.svg)](http://clojars.org/puppetlabs/pcp-client)
 
-    :dependencies [[puppetlabs/pcp-client "0.0.2"]]
-
-    :repositories [["releases" "http://nexus.delivery.puppetlabs.net/content/repositories/releases/"]
-                   ["snapshots" "http://nexus.delivery.puppetlabs.net/content/repositories/snapshots/"]]
-
-# Usage example
+## Usage example
 
 ```clojure
 (ns example-client
@@ -69,7 +64,7 @@ the following to your project.clj
 (client/close conn)
 ```
 
-# Support
+## Support
 
 We use the [Puppet Communications Protocol project on JIRA](https://tickets.puppetlabs.com/browse/PCP)
 with the component `clj-pcp-client` for tickets on `puppetlabs/pcp-client`.
