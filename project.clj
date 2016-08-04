@@ -20,7 +20,7 @@
                  [clj-time "0.10.0"]
 
                  [puppetlabs/ssl-utils "0.8.1"]
-                 [puppetlabs/pcp-common "0.5.1" :exclusions [puppetlabs/kitchensink prismatic/schema]]
+                 [puppetlabs/pcp-common "0.5.2" :exclusions [puppetlabs/kitchensink prismatic/schema]]
                  [puppetlabs/kitchensink "1.3.0"]
                  [prismatic/schema "1.0.4"]
 
