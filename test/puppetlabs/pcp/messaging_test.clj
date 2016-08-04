@@ -114,30 +114,37 @@
     (update-in broker-config [:webserver] merge
                {:ssl-key "./test-resources/ssl/private_keys/client01.example.com.pem"
                 :ssl-cert "./test-resources/ssl/certs/client01.example.com.pem"})
-    (with-open [client (connect-client "client01" (constantly true))]
-      (client/wait-for-connection client (* 4 1000))
-      (is (not (client/connected? client)) "Should never connect - ssl certificate of the broker is client01.example.com not localhost"))))
+    (with-log-level "puppetlabs.pcp.client" :warn
+      (with-test-logging
+        (with-open [client (connect-client "client01" (constantly true))]
+          (client/wait-for-connection client (* 4 1000))
+          (is (not (client/connected? client)) "Should never connect - ssl certificate of the broker is client01.example.com not localhost")
+          (is (logged? #"TLS Handshake failed\. Sleeping for up to 200 ms to retry" :warn)))))))
 
 (deftest ssl-ca-cert-permutation-test
   ;; This test checks that ssl verification is happening
   ;; against the expected certificate chain.  We do this using an
   ;; alternate signing authority (test-resources/ssl-alt), and then
   ;; permute the ssl-ca-cert configured for client and broker.
-  (doseq [[broker-ca client-ca associates]
-          [["ssl"     "ssl"     true]  ;; well-configured case
-           ["ssl"     "ssl-alt" false] ;; client should reject server cert
-           ["ssl-alt" "ssl"     false] ;; server should reject client cert
-           ["ssl-alt" "ssl-alt" false] ;; mutual rejection
+  (doseq [[broker-ca client-ca associates retries]
+          [["ssl"     "ssl"     true  false]  ;; well-configured case
+           ["ssl"     "ssl-alt" false true] ;; client should reject server cert
+           ["ssl-alt" "ssl"     false false] ;; server should reject client cert
+           ["ssl-alt" "ssl-alt" false true] ;; mutual rejection
            ]]
     (testing (str "broker-ca: " broker-ca " client-ca: " client-ca)
       (with-app-with-config app broker-services
         (assoc-in broker-config [:webserver :ssl-ca-cert]
                   (str "./test-resources/" broker-ca "/ca/ca_crt.pem"))
-        (with-open [client (connect-client-config (assoc (client-config "client01")
-                                                         :cacert (str "test-resources/" client-ca "/certs/ca.pem"))
-                                                  (constantly true))]
-          (client/wait-for-association client (* 4 1000))
-          (is (= associates (client/associated? client))))))))
+        (with-log-level "puppetlabs.pcp.client" :warn
+          (with-test-logging
+            (with-open [client (connect-client-config (assoc (client-config "client01")
+                                                             :cacert (str "test-resources/" client-ca "/certs/ca.pem"))
+                                                      (constantly true))]
+              (client/wait-for-association client (* 4 1000))
+              (is (= associates (client/associated? client)))
+              (when retries
+                (is (logged? #"TLS Handshake failed\. Sleeping for up to 200 ms to retry" :warn))))))))))
 
 (deftest send-when-not-connected-test
   (with-open [client (connect-client "client01" (constantly true))]
