@@ -163,13 +163,13 @@
     (with-log-level "puppetlabs.pcp.client" :debug
       (is (not (client/connected? client)) "Should not be connected yet")
       (with-app-with-config app broker-services broker-config
-        (client/wait-for-connection client (* 40 1000))
+        (is (client/wait-for-connection client (* 40 1000)))
         (is (client/connected? client) "Should now be connected"))
       ;; Allow time for the websocket connection to close, but not enough to attempt reconnecting
       (Thread/sleep 5)
       (is (not (client/connected? client)) "Should be disconnected")
       (with-app-with-config app broker-services broker-config
-        (client/wait-for-connection client (* 40 1000))
+        (is (client/wait-for-connection client (* 40 1000)))
         (is (client/connected? client) "Should be reconnected")))))
 
 (deftest association-checkers-test
