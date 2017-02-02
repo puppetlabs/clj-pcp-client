@@ -21,7 +21,7 @@
                  [org.clojure/clojure]
                  [org.clojure/tools.logging]
                  [puppetlabs/ssl-utils]
-                 [puppetlabs/kitchensink]
+                 [puppetlabs/kitchensink "2.2.0"]
                  [prismatic/schema]
                  [puppetlabs/trapperkeeper-status]
                  [puppetlabs/trapperkeeper-scheduler]
