@@ -5,6 +5,7 @@
             [puppetlabs.pcp.protocol :as p]
             [puppetlabs.ssl-utils.core :as ssl-utils]
             [schema.core :as s]
+            [puppetlabs.kitchensink.core :as ks]
             [puppetlabs.i18n.core :as i18n])
   (:use [slingshot.slingshot :only [throw+ try+]])
   (:import  (clojure.lang Atom)
@@ -210,7 +211,7 @@
           (throw+ {:type ::not-connected}))
       (try
         (ws/send-msg @@websocket-connection
-                     (message/encode (assoc message :sender identity)))
+                     (message/encode (ks/assoc-if-new message :sender identity)))
         (catch java.util.concurrent.ExecutionException exception
           (log/debug exception (i18n/trs "exception on the connection while attempting to send a message"))
           (throw+ {:type ::not-connected}))))

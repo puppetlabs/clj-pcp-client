@@ -119,6 +119,23 @@
             (is (= (:target message) (:target @received)))
             (is (= "pcp://client01.example.com/agent" (:sender @received)))))))))
 
+;; Test that the client allows specifying a sender and it won't be overwritten.
+;; The existing pcp-broker implementation will still reject the message, so we
+;; just check that the message is passed through unmodified.
+(deftest sender-spoof-test
+  (with-app-with-config app broker-services broker-config
+    (let [message (-> (message/make-message)
+                      (assoc :target "pcp://client01.example.com/agent"
+                             :sender "pcp://client02.example.com/agent"
+                             :message_type "example/any_schema"))
+          received (promise)]
+      (with-open [sender (connect-client "client01" (constantly true))]
+        (client/wait-for-connection sender (* 40 1000))
+        (eventually-logged?
+          "puppetlabs.pcp.broker.pcp_access" :warn
+          (partial re-find #"AUTHENTICATION_FAILURE")
+          (client/send! sender message))))))
+
 (deftest connect-to-a-down-broker-test
   (with-open [client (connect-client "client01" (constantly true))]
     (is (not (client/connected? client)) "Should not be connected yet")
