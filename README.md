@@ -33,13 +33,15 @@ Releases of this project are distributed via clojars, to use it:
   [conn request]
   (log/info "Default handler got message" request))
 
-;; connecting with handlers
+;; connecting with handlers; allows an optional callback that's called when the
+;; connection closes that passes the Client object as an argument
 (def conn (client/connect
            {:server "wss://localhost:8142/pcp/"
             :ssl-context
             {:cert "test-resources/ssl/certs/0001_controller.pem"
              :private-key "test-resources/ssl/private_keys/0001_controller.pem"
-             :cacert "test-resources/ssl/certs/ca.pem"}}
+             :cacert "test-resources/ssl/certs/ca.pem"}
+            :on-close-cb (fn [client] (println client))}
            {"example/cnc_request" cnc-request-handler
             :default default-request-handler}))
 
