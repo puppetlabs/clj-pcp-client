@@ -63,15 +63,19 @@
 
 (defn connect-client-config
   "connect a client with a handler function"
-  [config handler-function]
-  (client/connect config
-   {"example/any_schema"  handler-function
-    :default              default-request-handler}))
+  ([config handler-function]
+   (connect-client-config config handler-function nil))
+  ([config handler-function on-close-cb]
+   (client/connect (assoc config :on-close-cb on-close-cb)
+    {"example/any_schema"  handler-function
+     :default              default-request-handler})))
 
 (defn connect-client
   "connect a client with a handler function, uses default configuration strategy"
-  [cn handler-fn]
-  (connect-client-config (client-config cn) handler-fn))
+  ([cn handler-fn]
+   (connect-client cn handler-fn nil))
+  ([cn handler-fn on-close-cb]
+   (connect-client-config (client-config cn) handler-fn on-close-cb)))
 
 (defmacro eventually-logged?
   [logger-id level pred & body]
@@ -203,17 +207,20 @@
                   (client/send! client (message/make-message))))))
 
 (deftest connect-to-a-down-up-down-up-broker-test
-  (with-open [client (connect-client "client01" (constantly true))]
-    (is (not (client/connected? client)) "Should not be connected yet")
-    (with-app-with-config app broker-services broker-config
-      (is (= client (client/wait-for-connection client (* 40 1000))))
-      (is (client/connected? client) "Should now be connected"))
-    ;; Allow time for the websocket connection to close, but not enough to attempt reconnecting
-    (Thread/sleep 500)
-    (is (not (client/connected? client)) "Should be disconnected")
-    (with-app-with-config app broker-services broker-config
-      (is (= client (client/wait-for-connection client (* 40 1000))))
-      (is (client/connected? client) "Should be reconnected"))))
+  (let [closed (promise)
+        on-close-cb (fn [c] (deliver closed c))]
+    (with-open [client (connect-client "client01" (constantly true) on-close-cb)]
+      (is (not (client/connected? client)) "Should not be connected yet")
+      (with-app-with-config app broker-services broker-config
+        (is (= client (client/wait-for-connection client (* 40 1000))))
+        (is (client/connected? client) "Should now be connected"))
+      ;; Allow time for the websocket connection to close, but not enough to attempt reconnecting
+      (is (= (deref closed 1000 nil) client))
+      (Thread/sleep 100)
+      (is (not (client/connected? client)) "Should be disconnected")
+      (with-app-with-config app broker-services broker-config
+        (is (= client (client/wait-for-connection client (* 40 1000))))
+        (is (client/connected? client) "Should be reconnected")))))
 
 (deftest connect-with-too-small-message-size
   (with-app-with-config app broker-services broker-config

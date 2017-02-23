@@ -116,7 +116,7 @@
   or ConnectException a further connection attempt will be made by following an
   exponential backoff, whereas other exceptions will be propagated."
   [client :- Client]
-  (let [{:keys [server websocket-client should-stop]} client
+  (let [{:keys [server websocket-client should-stop on-close-cb]} client
         initial-sleep 200
         sleep-multiplier 2
         maximum-sleep (* 15 1000)]
@@ -137,6 +137,7 @@
                                     ;; Format error code as a string rather than a localized number, i.e. 1,234.
                                     (log/debug (i18n/trs "WebSocket closed {0} {1}" (str code) message))
                                     (deliver stop-heartbeat true)
+                                    (when on-close-cb (on-close-cb client))
                                     (let [{:keys [should-stop websocket-connection]} client]
                                       ;; Ensure disconnect state is immediately registered as connecting.
                                       (log/debug (i18n/trs "Sleeping for up to {0} ms to retry" retry-sleep))
@@ -219,6 +220,7 @@
   "schema for connection parameters"
   {:server s/Str
    :ssl-context (s/either SslFiles SSLContext)
+   (s/optional-key :on-close-cb) Object
    (s/optional-key :type) s/Str
    (s/optional-key :user-data) s/Any
    (s/optional-key :max-message-size) s/Int})
@@ -272,6 +274,7 @@
                              :websocket-client (make-websocket-client ssl-context-factory
                                                                       (:max-message-size params))
                              :websocket-connection (atom (future true))
+                             :on-close-cb (:on-close-cb params)
                              :handlers handlers
                              :should-stop (promise)
                              :user-data user-data})
