@@ -5,11 +5,14 @@
             [puppetlabs.pcp.client :as client]
             [puppetlabs.pcp.message-v2 :as message]
             [puppetlabs.ssl-utils.core :as ssl-utils]
+            [puppetlabs.experimental.websockets.client :as websockets-client]
             [puppetlabs.trapperkeeper.services.authorization.authorization-service :refer [authorization-service]]
             [puppetlabs.trapperkeeper.services.metrics.metrics-service :refer [metrics-service]]
             [puppetlabs.trapperkeeper.services.status.status-service :refer [status-service]]
             [puppetlabs.trapperkeeper.services.scheduler.scheduler-service :refer [scheduler-service]]
             [puppetlabs.trapperkeeper.services.webrouting.webrouting-service :refer [webrouting-service]]
+            [puppetlabs.trapperkeeper.services :refer [service-context]]
+            [puppetlabs.trapperkeeper.app :refer [get-service]]
             [puppetlabs.trapperkeeper.services.webserver.jetty9-service :refer [jetty9-service]]
             [puppetlabs.trapperkeeper.testutils.bootstrap :refer [with-app-with-config]]
             [puppetlabs.trapperkeeper.testutils.logging
@@ -163,6 +166,21 @@
                         (with-open [client (connect-client "client01" (constantly true))]
                           (client/wait-for-connection client (* 4 1000))
                           (is (not (client/connected? client)))))))
+
+(deftest connection-no-retries
+  (testing "no retries when retry is false"
+    (let [calls (atom 0)
+          make-connection client/-make-connection]
+      (with-redefs [client/-make-connection (fn [client] (swap! calls inc) (make-connection client))]
+        (with-app-with-config app broker-services broker-config
+          (let [client (client/connect (assoc (client-config "client01") :retry? false) {})
+                inventory (fn [] (:inventory @(:database (:broker (service-context
+                                                                    (get-service app :BrokerService))))))]
+            (while (empty? (inventory))
+              (Thread/sleep 100))
+            (websockets-client/close! (:websocket (first (vals (inventory)))))
+            (Thread/sleep 1000)
+            (is (= 1 @calls))))))))
 
 (deftest ssl-ca-cert-permutation-test
   ;; This test checks that ssl verification is happening

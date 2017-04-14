@@ -54,6 +54,7 @@
    handlers :- Handlers
    on-close-cb
    on-connect-cb
+   retry?
    should-stop ;; promise that when delivered means should stop
    websocket-connection ;; atom of a promise that will be a connection or true
    websocket-client]
@@ -113,12 +114,12 @@
         (.. session (getRemote) (sendPing (ByteBuffer/allocate 1))))))
   (log/debug (i18n/trs "WebSocket heartbeat task is about to finish")))
 
-(s/defn ^:private make-connection :- Object
+(s/defn -make-connection :- Object
   "Returns a connected WebSocket connection. In case of a SSLHandShakeException
   or ConnectException a further connection attempt will be made by following an
   exponential backoff, whereas other exceptions will be propagated."
   [client :- Client]
-  (let [{:keys [server websocket-client should-stop on-close-cb on-connect-cb]} client
+  (let [{:keys [server websocket-client should-stop on-close-cb on-connect-cb retry?]} client
         initial-sleep 200
         sleep-multiplier 2
         maximum-sleep (* 15 1000)]
@@ -146,8 +147,8 @@
                                       (log/debug (i18n/trs "Sleeping for up to {0} ms to retry" retry-sleep))
                                       (reset! websocket-connection
                                               (future
-                                                (if-not (deref should-stop initial-sleep nil)
-                                                  (make-connection client)
+                                                (if (and retry? (not (deref should-stop initial-sleep nil)))
+                                                  (-make-connection client)
                                                   true)))))
                         :on-receive (fn [text]
                                       (log/debug (i18n/trs "Received text message"))
@@ -223,6 +224,7 @@
   "schema for connection parameters"
   {:server s/Str
    :ssl-context (s/either SslFiles SSLContext)
+   (s/optional-key :retry?) s/Bool
    (s/optional-key :on-close-cb) Object
    (s/optional-key :on-connect-cb) Object
    (s/optional-key :type) s/Str
@@ -271,18 +273,19 @@
    The certificate file specified can provide either a single certificate,
    or a certificate chain (with the first entry being the client's certificate)."
   [params :- ConnectParams handlers :- Handlers]
-  (let [{:keys [cert type server user-data]} params
-        defaulted-type (or type "agent")
-        ssl-context-factory (make-ssl-context params)
-        client (map->Client {:server (append-client-type server defaulted-type)
-                             :websocket-client (make-websocket-client ssl-context-factory
-                                                                      (:max-message-size params))
-                             :websocket-connection (atom (future true))
-                             :on-close-cb (:on-close-cb params)
-                             :on-connect-cb (:on-connect-cb params)
-                             :handlers handlers
-                             :should-stop (promise)
-                             :user-data user-data})
-        {:keys [websocket-connection]} client]
-    (reset! websocket-connection (future (make-connection client)))
-    client))
+   (let [{:keys [cert type server user-data retry?] :or {retry? true}} params
+         defaulted-type (or type "agent")
+         ssl-context-factory (make-ssl-context params)
+         client (map->Client {:server (append-client-type server defaulted-type)
+                              :websocket-client (make-websocket-client ssl-context-factory
+                                                                       (:max-message-size params))
+                              :websocket-connection (atom (future true))
+                              :on-close-cb (:on-close-cb params)
+                              :on-connect-cb (:on-connect-cb params)
+                              :retry? retry?
+                              :handlers handlers
+                              :should-stop (promise)
+                              :user-data user-data})
+         {:keys [websocket-connection]} client]
+     (reset! websocket-connection (future (-make-connection client)))
+     client))

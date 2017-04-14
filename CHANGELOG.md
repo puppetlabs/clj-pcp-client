@@ -1,3 +1,9 @@
+## 1.1.5
+
+This is a maintenance release.
+
+* Add a retry? parameter to the client to allow connection without retries.
+
 ## 1.1.4
 
 This is a maintenance release.

@@ -49,11 +49,10 @@
       (is (= "default"
              (dispatch-message client (message/make-message :message_type "bar")))))))
 
-(def make-connection #'puppetlabs.pcp.client/make-connection)
 (deftest make-connection-test
   (with-redefs [gniazdo.core/connect (constantly "awesome")]
     (is (= "awesome"
-           (make-connection (make-test-client))))))
+           (-make-connection (make-test-client))))))
 
 (deftest wait-for-connection-test
   (testing "when connected"
