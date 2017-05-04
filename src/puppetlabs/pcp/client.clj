@@ -111,7 +111,9 @@
     (let [sessions (.getOpenSessions websocket-client)]
       (log/debug (i18n/trs "Sending WebSocket ping"))
       (doseq [session sessions]
-        (.. session (getRemote) (sendPing (ByteBuffer/allocate 1))))))
+        ;; sessions in the CLOSING state are in OpenSessions
+        (when (.isOpen session)
+          (.. session (getRemote) (sendPing (ByteBuffer/allocate 1)))))))
   (log/debug (i18n/trs "WebSocket heartbeat task is about to finish")))
 
 (s/defn -make-connection :- Object
@@ -128,45 +130,56 @@
     (loop [retry-sleep initial-sleep
            stop-heartbeat (promise)]
       (or (try+
-            (log/debug (i18n/trs "Making connection to {0}" server))
-            (ws/connect server
-                        :client websocket-client
-                        :on-connect (fn [session]
-                                      (log/debug (i18n/trs "WebSocket connected, heartbeat task starting"))
-                                      (.start (Thread. (partial heartbeat websocket-client stop-heartbeat)))
-                                      (when on-connect-cb (on-connect-cb client)))
-                        :on-error (fn [error]
-                                    (log/error error (i18n/trs "WebSocket error")))
-                        :on-close (fn [code message]
-                                    ;; Format error code as a string rather than a localized number, i.e. 1,234.
-                                    (log/debug (i18n/trs "WebSocket closed {0} {1}" (str code) message))
-                                    (deliver stop-heartbeat true)
-                                    (when on-close-cb (on-close-cb client))
-                                    (let [{:keys [should-stop websocket-connection]} client]
-                                      ;; Ensure disconnect state is immediately registered as connecting.
-                                      (log/debug (i18n/trs "Sleeping for up to {0} ms to retry" retry-sleep))
-                                      (reset! websocket-connection
-                                              (future
-                                                (if (and retry? (not (deref should-stop initial-sleep nil)))
-                                                  (-make-connection client)
-                                                  true)))))
-                        :on-receive (fn [text]
-                                      (log/debug (i18n/trs "Received text message"))
-                                      (dispatch-message client (message/decode text))))
-            (catch javax.net.ssl.SSLHandshakeException exception
-              (log/warn exception (i18n/trs "TLS Handshake failed. Sleeping for up to {0} ms to retry" retry-sleep))
-              (deref should-stop retry-sleep nil))
-            (catch java.net.ConnectException exception
-              ;; The following will produce "Didn't get connected. ..."
-              ;; The apostrophe needs to be duplicated (even in the translations).
-              (log/debug exception (i18n/trs "Didn''t get connected. Sleeping for up to {0} ms to retry" retry-sleep))
-              (deref should-stop retry-sleep nil))
-            (catch java.io.IOException exception
-              (log/debug exception (i18n/trs "Connection closed while establishing connection. Sleeping for up to {0} ms to reconnect" retry-sleep))
-              (deref should-stop retry-sleep nil))
-            (catch Object _
-              (log/error (:throwable &throw-context) (i18n/trs "Unexpected error"))
-              (throw+)))
+             (try
+                (log/debug (i18n/trs "Making connection to {0}" server))
+                (ws/connect server
+                            :client websocket-client
+                            :on-connect (fn [session]
+                                          (log/debug (i18n/trs "WebSocket connected, heartbeat task starting"))
+                                          (.start (Thread. (partial heartbeat websocket-client stop-heartbeat)))
+                                          (when on-connect-cb (on-connect-cb client)))
+                            :on-error (fn [error]
+                                        ;; It may be a bug in jetty but connection errors result in two UpgradeExceptions passed to the
+                                        ;; on-error handler on the Listener. gniazdo/connect's Listener captures and returns only the first error
+                                        ;; the second is handled off to our handler which should only log it at debug since the catch around excep
+                                        ;; will normally deal with it.
+                                        (if (instance?  org.eclipse.jetty.websocket.api.UpgradeException error)
+                                          (log/debug error (i18n/trs "WebSocket error"))
+                                          (log/error error (i18n/trs "WebSocket error"))))
+                            :on-close (fn [code message]
+                                        ;; Format error code as a string rather than a localized number, i.e. 1,234.
+                                        (log/debug (i18n/trs "WebSocket closed {0} {1}" (str code) message))
+                                        (deliver stop-heartbeat true)
+                                        (when on-close-cb (on-close-cb client))
+                                        (let [{:keys [should-stop websocket-connection]} client]
+                                          ;; Ensure disconnect state is immediately registered as connecting.
+                                          (log/debug (i18n/trs "Sleeping for up to {0} ms to retry" retry-sleep))
+                                          (reset! websocket-connection
+                                                  (future
+                                                    (if (and retry? (not (deref should-stop initial-sleep nil)))
+                                                      (-make-connection client)
+                                                      true)))))
+                            :on-receive (fn [text]
+                                          (log/debug (i18n/trs "Received text message"))
+                                          (dispatch-message client (message/decode text))))
+                ;; websocket request in 9.4 wraps exceptions before the connection is upgraded in UpgradeException
+                ;; extract the exception we care about and rethrow
+                (catch org.eclipse.jetty.websocket.api.UpgradeException exception
+                  (throw (or (.getCause exception) exception))))
+              (catch javax.net.ssl.SSLHandshakeException exception
+                (log/warn exception (i18n/trs "TLS Handshake failed. Sleeping for up to {0} ms to retry" retry-sleep))
+                (deref should-stop retry-sleep nil))
+              (catch java.net.ConnectException exception
+                ;; The following will produce "Didn't get connected. ..."
+                ;; The apostrophe needs to be duplicated (even in the translations).
+                (log/debug exception (i18n/trs "Didn''t get connected. Sleeping for up to {0} ms to retry" retry-sleep))
+                (deref should-stop retry-sleep nil))
+              (catch java.io.IOException exception
+                (log/debug exception (i18n/trs "Connection closed while establishing connection. Sleeping for up to {0} ms to reconnect" retry-sleep))
+                (deref should-stop retry-sleep nil))
+              (catch Object _
+                (log/error (:throwable &throw-context) (i18n/trs "Unexpected error"))
+                (throw+)))
           (recur (min maximum-sleep (* retry-sleep sleep-multiplier)) (promise))))))
 
 (s/defn -wait-for-connection :- (s/maybe Client)
