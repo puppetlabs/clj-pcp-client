@@ -1,3 +1,9 @@
+## 1.1.6
+
+This is a maintenance release.
+
+* Bumps clj-parent to 1.0.0 which  upgrades jetty to 9.4.
+
 ## 1.1.5
 
 This is a maintenance release.
