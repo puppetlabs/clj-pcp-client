@@ -8,15 +8,14 @@
 
   :min-lein-version "2.7.1"
 
-  :parent-project {:coords [puppetlabs/clj-parent "0.6.1"]
+  :parent-project {:coords [puppetlabs/clj-parent "1.0.0"]
                    :inherit [:managed-dependencies]}
 
   :dependencies [[puppetlabs/pcp-common "1.1.4"]
 
-                 ;; Transitive dependencies on jetty for stylefuits/gniazdo
-                 ;; to use a stable jetty release (gniazdo specifies 9.3.0M1)
-                 [org.eclipse.jetty.websocket/websocket-client "9.2.10.v20150310"]
                  [stylefruits/gniazdo "0.4.0" :exclusions [org.eclipse.jetty.websocket/websocket-client]]
+                 ;; We only care about org.eclipse.jetty.websocket/websocket-client
+                 [puppetlabs/trapperkeeper-webserver-jetty9]
 
                  [org.clojure/clojure]
                  [org.clojure/tools.logging]
@@ -43,11 +42,10 @@
   :test-paths ["test" "test-resources"]
 
   :profiles {:dev {:source-paths ["dev"]
-                   :dependencies [[puppetlabs/pcp-broker "1.2.0"]
+                   :dependencies [[puppetlabs/pcp-broker "1.3.2"]
                                   [puppetlabs/trapperkeeper]
                                   [puppetlabs/trapperkeeper :classifier "test" :scope "test"]
-                                  [puppetlabs/kitchensink :classifier "test" :scope "test"]
-                                  [puppetlabs/trapperkeeper-webserver-jetty9]]}
+                                  [puppetlabs/kitchensink :classifier "test" :scope "test"]]}
              :cljfmt {:plugins [[lein-cljfmt "0.3.0"]
                                 [lein-parent "0.2.1"]]
                       :parent-project {:path "../pl-clojure-style/project.clj"

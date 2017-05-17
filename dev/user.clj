@@ -4,9 +4,10 @@
 
 (def test-parameters
   {:server "wss://broker.example.com:8142/pcp2"
-   :cacert "../pcp-broker/test-resources/ssl/certs/ca.pem"
-   :cert "../pcp-broker/test-resources/ssl/certs/client01.example.com.pem"
-   :private-key "../pcp-broker/test-resources/ssl/private_keys/client01.example.com.pem"
+   :ssl-context {
+                 :cacert "../pcp-broker/test-resources/ssl/certs/ca.pem"
+                 :cert "../pcp-broker/test-resources/ssl/certs/client01.example.com.pem"
+                 :private-key "../pcp-broker/test-resources/ssl/private_keys/client01.example.com.pem"}
    :type "test-client"
    :max-message-size 67108864})
 
