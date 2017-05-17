@@ -3,7 +3,6 @@ sudo: false
 lein: 2.7.1
 jdk:
   - oraclejdk8
-  - openjdk8
 script:
   - lein test
   - lein with-profile test-schema-validation test
