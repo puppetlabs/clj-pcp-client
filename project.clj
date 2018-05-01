@@ -1,4 +1,4 @@
-(defproject puppetlabs/pcp-client "1.1.7-SNAPSHOT"
+(defproject puppetlabs/pcp-client "1.2.0-SNAPSHOT"
   :description "client library for PCP"
   :url "https://github.com/puppetlabs/clj-pcp-client"
   :license {:name "Apache License, Version 2.0"
@@ -8,12 +8,12 @@
 
   :min-lein-version "2.7.1"
 
-  :parent-project {:coords [puppetlabs/clj-parent "1.0.0"]
+  :parent-project {:coords [puppetlabs/clj-parent "2.0.0"]
                    :inherit [:managed-dependencies]}
 
-  :dependencies [[puppetlabs/pcp-common "1.1.4"]
+  :dependencies [[puppetlabs/pcp-common "1.2.0"]
 
-                 [stylefruits/gniazdo "0.4.0" :exclusions [org.eclipse.jetty.websocket/websocket-client]]
+                 [stylefruits/gniazdo "1.0.1" :exclusions [org.eclipse.jetty.websocket/websocket-client]]
                  ;; We only care about org.eclipse.jetty.websocket/websocket-client
                  [puppetlabs/trapperkeeper-webserver-jetty9]
 
@@ -28,7 +28,7 @@
                  [puppetlabs/i18n]]
 
   :plugins [[lein-release "1.0.5" :exclusions [org.clojure/clojure]]
-            [lein-parent "0.3.1"]
+            [lein-parent "0.3.4"]
             [puppetlabs/i18n "0.8.0"]]
 
   :lein-release {:scm :git
@@ -42,12 +42,13 @@
   :test-paths ["test" "test-resources"]
 
   :profiles {:dev {:source-paths ["dev"]
-                   :dependencies [[puppetlabs/pcp-broker "1.3.2"]
+                   :dependencies [[puppetlabs/pcp-broker "1.4.4"]
+                                  [org.clojure/tools.nrepl]
                                   [puppetlabs/trapperkeeper]
                                   [puppetlabs/trapperkeeper :classifier "test" :scope "test"]
                                   [puppetlabs/kitchensink :classifier "test" :scope "test"]]}
-             :cljfmt {:plugins [[lein-cljfmt "0.3.0"]
-                                [lein-parent "0.2.1"]]
+             :cljfmt {:plugins [[lein-cljfmt "0.5.7" :exclusions [org.clojure/clojure]]
+                                [lein-parent "0.3.4"]]
                       :parent-project {:path "../pl-clojure-style/project.clj"
                                        :inherit [:cljfmt]}}
              :test-base [:dev
