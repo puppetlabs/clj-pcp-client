@@ -29,7 +29,7 @@
                             :allow-unauthenticated true
                             :sort-order 1}]}
 
-   :webserver {:ssl-host     "127.0.0.1"
+   :webserver {:ssl-host     "localhost"
                ;; Default port is 8142.  Use 8143 here so we don't clash.
                :ssl-port     8143
                :client-auth  "want"
