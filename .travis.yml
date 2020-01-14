@@ -1,9 +1,10 @@
 language: clojure
+dist: xenial
 sudo: false
-lein: 2.8.1
+lein: 2.9.1
 jdk:
-  - oraclejdk9
-  - oraclejdk8
+  - openjdk8
+  - openjdk11
 script:
   - lein test
   - lein with-profile test-schema-validation test
