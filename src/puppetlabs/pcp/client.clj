@@ -165,7 +165,14 @@
                 ;; websocket request in 9.4 wraps exceptions before the connection is upgraded in UpgradeException
                 ;; extract the exception we care about and rethrow
                 (catch org.eclipse.jetty.websocket.api.UpgradeException exception
-                  (throw (or (.getCause exception) exception))))
+                  (if (> (.getResponseStatusCode exception) 0)
+                    (do
+                      (log/warn exception
+                                (i18n/trs
+                                  "WebSocket Upgrade handshake failed with HTTP {0}. Sleeping for up to {1} ms to retry"
+                                  (.getResponseStatusCode exception) retry-sleep))
+                      (deref should-stop retry-sleep nil))
+                    (throw (or (.getCause exception) exception)))))
               (catch javax.net.ssl.SSLHandshakeException exception
                 (log/warn exception (i18n/trs "TLS Handshake failed. Sleeping for up to {0} ms to retry" retry-sleep))
                 (deref should-stop retry-sleep nil))

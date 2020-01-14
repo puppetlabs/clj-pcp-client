@@ -3,7 +3,8 @@
             [puppetlabs.pcp.client :refer :all :as client]
             [puppetlabs.pcp.message-v2 :as message]
             [slingshot.test]
-            [schema.test :as st]))
+            [schema.test :as st]
+            [gniazdo.core :as g]))
 
 (defn make-test-client
   "A dummied up client object"
@@ -11,7 +12,6 @@
    (let [realized-future (future true)]
      (deref realized-future)                                ; make sure the future is realized
      (map->Client {:server "wss://localhost:8142/pcp/v1"
-                   :websocket-client ""
                    :websocket-connection (atom realized-future)
                    :handlers {}
                    :should-stop (promise)
@@ -65,3 +65,32 @@
           connected-later (assoc (make-test-client) :websocket-connection connection)]
       (is (= nil
              (wait-for-connection connected-later 1000))))))
+
+(deftest upgrade-exception-retryable-with-http-status
+  (testing "UpgradeException with status code > 0 retries"
+    (let [retry-count (atom 0)]
+      (with-redefs [g/connect (fn [url & opts]
+                                (do
+                                  (when (> @retry-count 0)
+                                    (throw (InterruptedException. "test passed")))
+                                  (swap! retry-count inc)
+                                  (throw (org.eclipse.jetty.websocket.api.UpgradeException.
+                                           (java.net.URI. url)
+                                           503
+                                           "test"))))]
+        (is (thrown-with-msg? InterruptedException #"test passed"
+                              (-make-connection (make-test-client))))))))
+
+(deftest upgrade-exception-not-retryable
+  (testing "UpgradeException with status code 0 does not retry"
+    (let [retry-count (atom 0)]
+      (with-redefs [g/connect (fn [url & opts]
+                                (do
+                                  (when (> @retry-count 0)
+                                    (throw (InterruptedException. "test failed")))
+                                  (swap! retry-count inc)
+                                  (throw (org.eclipse.jetty.websocket.api.UpgradeException.
+                                           (java.net.URI. url)
+                                           (Exception. "unretryable exception")))))]
+        (is (thrown-with-msg? Exception #"unretryable exception"
+                              (-make-connection (make-test-client))))))))
