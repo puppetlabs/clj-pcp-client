@@ -7,6 +7,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: puppetlabs.pcp_client \n"
+"X-Git-Ref: 12f9c761231fee831f1cf0a6fdd5d57581f4bdc3\n"
 "Report-Msgid-Bugs-To: docs@puppet.com\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
@@ -57,6 +58,12 @@ msgstr ""
 
 #: src/puppetlabs/pcp/client.clj
 msgid "Received text message"
+msgstr ""
+
+#: src/puppetlabs/pcp/client.clj
+msgid ""
+"WebSocket Upgrade handshake failed with HTTP {0}. Sleeping for up to {1} ms "
+"to retry"
 msgstr ""
 
 #: src/puppetlabs/pcp/client.clj
