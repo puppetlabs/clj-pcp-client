@@ -2,6 +2,7 @@
 
 This is a maintenance release.
 
+* This now requires Java 11.
 * Bump clj-parent to 4.3.2 which upgrades jetty to 9.4.18
 * update pcp-common to 1.3.0 to remove warning about uuid? collision with clojure
 
