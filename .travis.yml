@@ -3,7 +3,6 @@ dist: xenial
 sudo: false
 lein: 2.9.1
 jdk:
-  - openjdk8
   - openjdk11
 script:
   - lein test
