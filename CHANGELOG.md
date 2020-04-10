@@ -1,3 +1,10 @@
+## 1.3.1
+
+This is a maintenance release.
+
+* Bump clj-parent to 4.4.1
+* update pcp-common to 1.3.1
+
 ## 1.3.0
 
 This is a maintenance release.
@@ -131,7 +138,7 @@ This is a bug fix release.  Changes to the Client interface have been made.
   puppetlabs.pcp.client/Client interface for starting the WebSocket heartbeat
   synchronously.
 * [PCP-346](https://tickets.puppetlabs.com/browse/PCP-346) Add an optional
-  :user-data field to the puppetlabs.pcp.client/Client interface. 
+  :user-data field to the puppetlabs.pcp.client/Client interface.
 
 ## 0.2.2
 
