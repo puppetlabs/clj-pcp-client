@@ -162,7 +162,7 @@
                {:ssl-key "./test-resources/ssl/private_keys/client01.example.com.pem"
                 :ssl-cert "./test-resources/ssl/certs/client01.example.com.pem"})
     (eventually-logged? "puppetlabs.pcp.client" :warn
-                        (partial re-find #"TLS Handshake failed\. Sleeping for up to 200 ms to retry")
+                        (partial re-find #"TLS Handshake failed\. Sleeping for up to .* to retry")
                         (with-open [client (connect-client "client01" (constantly true))]
                           (client/wait-for-connection client (* 4 1000))
                           (is (not (client/connected? client)))))))
@@ -196,7 +196,7 @@
                   (str "./test-resources/" broker-ca "/ca/ca_crt.pem"))
           (eventually-logged?
             "puppetlabs.pcp.client" :warn
-            (partial re-find #"TLS Handshake failed\. Sleeping for up to 200 ms to retry")
+            (partial re-find #"TLS Handshake failed\. Sleeping for up to .* to retry")
             (with-open [client (connect-client-config
                                  (assoc-in (client-config "client01")
                                         [:ssl-context :cacert] (str "test-resources/" client-ca "/certs/ca.pem"))
