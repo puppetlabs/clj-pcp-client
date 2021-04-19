@@ -8,12 +8,12 @@
 
   :min-lein-version "2.7.1"
 
-  :parent-project {:coords [puppetlabs/clj-parent "4.6.17"]
+  :parent-project {:coords [puppetlabs/clj-parent "4.6.20"]
                    :inherit [:managed-dependencies]}
 
-  :dependencies [[puppetlabs/pcp-common "1.3.3" :exclusions [org.tukaani/xz]]
+  :dependencies [[puppetlabs/pcp-common "1.3.4" :exclusions [org.tukaani/xz]]
 
-                 [stylefruits/gniazdo "1.0.1" :exclusions [org.eclipse.jetty.websocket/websocket-client]]
+                 [stylefruits/gniazdo "1.2.0" :exclusions [org.eclipse.jetty.websocket/websocket-client]]
                  ;; We only care about org.eclipse.jetty.websocket/websocket-client
                  [puppetlabs/trapperkeeper-webserver-jetty9]
 
@@ -42,7 +42,7 @@
   :test-paths ["test" "test-resources"]
 
   :profiles {:dev {:source-paths ["dev"]
-                   :dependencies [[puppetlabs/pcp-broker "1.5.4"]
+                   :dependencies [[puppetlabs/pcp-broker "1.6.2"]
                                   [org.clojure/tools.nrepl]
                                   [org.bouncycastle/bcpkix-jdk15on]
                                   [puppetlabs/trapperkeeper]
