@@ -201,7 +201,25 @@
                                  (assoc-in (client-config "client01")
                                         [:ssl-context :cacert] (str "test-resources/" client-ca "/certs/ca.pem"))
                                  (constantly true))]
-              (client/wait-for-connection client (* 4 1000))))))))
+              (client/wait-for-connection client (* 4 1000)))))))
+  (testing "alternative certs are valid"
+    ;; if the certs are invalid (expired, etc.), the test above
+    ;; will still pass as the log message still contains TLS Handshake failed...
+    ;; adding a test here as a check that the client can connect with the alt certs
+    (with-app-with-config app broker-services
+      (update-in broker-config [:webserver] merge
+                 {:ssl-crl-path "./test-resources/ssl-alt/ca/ca_crl.pem"
+                  :ssl-ca-cert "./test-resources/ssl-alt/ca/ca_crt.pem"
+                  :ssl-cert "./test-resources/ssl-alt/certs/localhost.pem"
+                  :ssl-key "./test-resources/ssl-alt/private_keys/localhost.pem"})
+      (with-open [client (connect-client-config
+                           (update-in (client-config "client01") [:ssl-context] merge
+                                      {:cacert "test-resources/ssl-alt/certs/ca.pem"
+                                       :cert "test-resources/ssl-alt/certs/client01.example.com.pem"
+                                       :private-key "test-resources/ssl-alt/private_keys/client01.example.com.pem"})
+                           (constantly true))]
+        (client/wait-for-connection client (* 4 1000))
+        (is (client/connected? client) "Client will connect unless certs are invalid")))))
 
 (deftest ssl-context-test
   (with-app-with-config app broker-services broker-config
