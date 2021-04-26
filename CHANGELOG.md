@@ -1,3 +1,10 @@
+## 1.3.3
+
+This is a maintenance release.
+
+* update clj-parent to 4.6.20
+* update pcp-common to 1.3.4
+
 ## 1.3.2
 
 This is a maintenance release.
