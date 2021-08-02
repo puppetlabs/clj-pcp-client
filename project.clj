@@ -8,7 +8,7 @@
 
   :min-lein-version "2.7.1"
 
-  :parent-project {:coords [puppetlabs/clj-parent "4.6.20"]
+  :parent-project {:coords [puppetlabs/clj-parent "4.6.28"]
                    :inherit [:managed-dependencies]}
 
   :dependencies [[puppetlabs/pcp-common "1.3.4" :exclusions [org.tukaani/xz]]
