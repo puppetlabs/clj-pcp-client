@@ -48,10 +48,6 @@
                                   [puppetlabs/trapperkeeper]
                                   [puppetlabs/trapperkeeper :classifier "test" :scope "test"]
                                   [puppetlabs/kitchensink :classifier "test" :scope "test"]]}
-             :cljfmt {:plugins [[lein-cljfmt "0.5.7" :exclusions [org.clojure/clojure]]
-                                [lein-parent "0.3.4"]]
-                      :parent-project {:path "../pl-clojure-style/project.clj"
-                                       :inherit [:cljfmt]}}
              :test-base [:dev
                          {:source-paths ["test-resources"]
                           :test-paths ^:replace ["test"]}]
@@ -60,5 +56,4 @@
                                                       (require 'schema.core)
                                                       (schema.core/set-fn-validation! true))]}]}
 
-  :aliases {"cljfmt" ["with-profile" "+cljfmt" "cljfmt"]
-            "test-all" ["with-profile" "test-base:test-schema-validation" "test"]})
+  :aliases {"test-all" ["with-profile" "test-base:test-schema-validation" "test"]})
