@@ -1,3 +1,11 @@
+## 1.3.4
+
+This is a maintenance release.
+
+* update clj-parent to 4.9.1
+* update pcp-common to 1.3.5
+* Remove pl-clojure-style linter
+
 ## 1.3.3
 
 This is a maintenance release.
