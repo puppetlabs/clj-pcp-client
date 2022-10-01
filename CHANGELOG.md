@@ -1,3 +1,9 @@
+## 1.4.0
+
+This is a maintenance release.
+* update clj-parent to 5.2.9 which contains multiple updates from the previous version
+* use the version for stylefruits/gniazdo from clj-parent
+
 ## 1.3.4
 
 This is a maintenance release.

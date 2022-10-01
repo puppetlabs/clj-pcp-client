@@ -1,4 +1,4 @@
-(defproject puppetlabs/pcp-client "1.3.5-SNAPSHOT"
+(defproject puppetlabs/pcp-client "1.4.0-SNAPSHOT"
   :description "client library for PCP"
   :url "https://github.com/puppetlabs/clj-pcp-client"
   :license {:name "Apache License, Version 2.0"
@@ -8,12 +8,12 @@
 
   :min-lein-version "2.7.1"
 
-  :parent-project {:coords [puppetlabs/clj-parent "4.9.1"]
+  :parent-project {:coords [puppetlabs/clj-parent "5.2.9"]
                    :inherit [:managed-dependencies]}
 
   :dependencies [[puppetlabs/pcp-common "1.3.5" :exclusions [org.tukaani/xz]]
 
-                 [stylefruits/gniazdo "1.2.0" :exclusions [org.eclipse.jetty.websocket/websocket-client]]
+                 [stylefruits/gniazdo nil :exclusions [org.eclipse.jetty.websocket/websocket-client]]
                  ;; We only care about org.eclipse.jetty.websocket/websocket-client
                  [puppetlabs/trapperkeeper-webserver-jetty9]
 
