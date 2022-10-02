@@ -1,4 +1,4 @@
-(defproject puppetlabs/pcp-client "1.4.0-SNAPSHOT"
+(defproject puppetlabs/pcp-client "1.4.0"
   :description "client library for PCP"
   :url "https://github.com/puppetlabs/clj-pcp-client"
   :license {:name "Apache License, Version 2.0"
