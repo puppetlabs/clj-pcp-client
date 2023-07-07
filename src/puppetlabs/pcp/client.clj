@@ -1,16 +1,25 @@
 (ns puppetlabs.pcp.client
   (:require [clojure.tools.logging :as log]
-            [gniazdo.core :as ws]
             [puppetlabs.pcp.message-v2 :as message :refer [Message]]
+            [puppetlabs.trapperkeeper.services.webserver.jetty10-websockets :as jetty10-websockets]
+            [puppetlabs.trapperkeeper.services.websocket-session :as websocket-session]
             [puppetlabs.pcp.protocol :as p]
             [puppetlabs.ssl-utils.core :as ssl-utils]
             [schema.core :as s]
-            [puppetlabs.i18n.core :as i18n])
+            [puppetlabs.i18n.core :as i18n]
+            [puppetlabs.pcp.client :as client])
   (:use [slingshot.slingshot :only [throw+ try+]])
   (:import  (clojure.lang Atom)
+            (java.net URI)
             (java.nio ByteBuffer)
+            (org.eclipse.jetty.io ClientConnector ClientConnectionFactory$Info)
+            (org.eclipse.jetty.client.dynamic HttpClientTransportDynamic)
+            (org.eclipse.jetty.websocket.api Session)
             (org.eclipse.jetty.websocket.client WebSocketClient)
-            (org.eclipse.jetty.util.ssl SslContextFactory)
+            (org.eclipse.jetty.client HttpClient)
+            (org.eclipse.jetty.client.http HttpClientConnectionFactory HttpClientConnectionFactory$HTTP11)
+            (org.eclipse.jetty.util.component LifeCycle)
+            (org.eclipse.jetty.util.ssl SslContextFactory$Client)
             (javax.net.ssl SSLContext)
             (java.security KeyStore)))
 
@@ -116,12 +125,16 @@
           (.. session (getRemote) (sendPing (ByteBuffer/allocate 1)))))))
   (log/debug (i18n/trs "WebSocket heartbeat task is about to finish")))
 
-(s/defn -make-connection :- Object
-  "Returns a connected WebSocket connection. In case of a SSLHandShakeException
+(s/defn create-websocket-session :- Session
+  [websocket-client client-endpoint request-path-uri]
+   (.get (.connect websocket-client client-endpoint request-path-uri)))
+
+(s/defn -make-connection :- Session
+  "Returns a connected org.eclipse.jetty.websocket.api.Session. In case of a SSLHandShakeException
   or ConnectException a further connection attempt will be made by following an
   exponential backoff, whereas other exceptions will be propagated."
   [client :- Client]
-  (let [{:keys [server websocket-client should-stop on-close-cb on-connect-cb retry?]} client
+  (let [{:keys [server websocket-client should-stop on-close-cb on-connect-cb retry? certs]} client
         initial-sleep 200
         sleep-multiplier 2
         maximum-sleep (* 15 1000)]
@@ -130,63 +143,65 @@
     (loop [retry-sleep initial-sleep
            stop-heartbeat (promise)]
       (or (try+
-             (try
-                (log/debug (i18n/trs "Making connection to {0}" server))
-                (ws/connect server
-                            :client websocket-client
-                            :on-connect (fn [session]
-                                          (log/debug (i18n/trs "WebSocket connected, heartbeat task starting"))
-                                          (.start (Thread. (partial heartbeat websocket-client stop-heartbeat)))
-                                          (when on-connect-cb (on-connect-cb client)))
-                            :on-error (fn [error]
-                                        ;; It may be a bug in jetty but connection errors result in two UpgradeExceptions passed to the
-                                        ;; on-error handler on the Listener. gniazdo/connect's Listener captures and returns only the first error
-                                        ;; the second is handled off to our handler which should only log it at debug since the catch around excep
-                                        ;; will normally deal with it.
-                                        (if (instance?  org.eclipse.jetty.websocket.api.UpgradeException error)
-                                          (log/debug error (i18n/trs "WebSocket error"))
-                                          (log/error error (i18n/trs "WebSocket error"))))
-                            :on-close (fn [code message]
-                                        ;; Format error code as a string rather than a localized number, i.e. 1,234.
-                                        (log/debug (i18n/trs "WebSocket closed {0} {1}" (str code) message))
-                                        (deliver stop-heartbeat true)
-                                        (when on-close-cb (on-close-cb client))
-                                        (let [{:keys [should-stop websocket-connection]} client]
-                                          ;; Ensure disconnect state is immediately registered as connecting.
-                                          (log/debug (i18n/trs "Sleeping for up to {0} ms to retry" retry-sleep))
-                                          (reset! websocket-connection
-                                                  (future
-                                                    (if (and retry? (not (deref should-stop initial-sleep nil)))
-                                                      (-make-connection client)
-                                                      true)))))
-                            :on-receive (fn [text]
-                                          (log/debug (i18n/trs "Received text message"))
-                                          (dispatch-message client (message/decode text))))
-                ;; websocket request in 9.4 wraps exceptions before the connection is upgraded in UpgradeException
-                ;; extract the exception we care about and rethrow
-                (catch org.eclipse.jetty.websocket.api.UpgradeException exception
-                  (if (> (.getResponseStatusCode exception) 0)
-                    (do
-                      (log/warn exception
-                                (i18n/trs
-                                  "WebSocket Upgrade handshake failed with HTTP {0}. Sleeping for up to {1} ms to retry"
-                                  (.getResponseStatusCode exception) retry-sleep))
-                      (deref should-stop retry-sleep nil))
-                    (throw (or (.getCause exception) exception)))))
-              (catch javax.net.ssl.SSLHandshakeException exception
-                (log/warn exception (i18n/trs "TLS Handshake failed. Sleeping for up to {0} ms to retry" retry-sleep))
-                (deref should-stop retry-sleep nil))
-              (catch java.net.ConnectException exception
+           (try
+             (log/debug (i18n/trs "Making connection to {0}" server))
+             (let [handlers {:on-connect (fn [ws]
+                                           (log/debug (i18n/trs "WebSocket connected, heartbeat task starting"))
+                                           (.start (Thread. (partial heartbeat websocket-client stop-heartbeat)))
+                                           (when on-connect-cb (on-connect-cb client)))
+                             :on-error (fn [ws error]
+                                         ;; It may be a bug in jetty but connection errors result in two UpgradeExceptions passed to the
+                                         ;; on-error handler on the Listener. gniazdo/connect's Listener captures and returns only the first error
+                                         ;; the second is handled off to our handler which should only log it at debug since the catch around excep
+                                         ;; will normally deal with it.
+                                         (if (instance?  org.eclipse.jetty.websocket.api.exceptions.UpgradeException error)
+                                           (log/debug error (i18n/trs "WebSocket error"))
+                                           (log/error error (i18n/trs "WebSocket error"))))
+                             :on-close (fn [ws code message]
+                                         ;; Format error code as a string rather than a localized number, i.e. 1,234.
+                                         (log/debug (i18n/trs "WebSocket closed {0} {1}" (str code) message))
+                                         (deliver stop-heartbeat true)
+                                         (when on-close-cb (on-close-cb client))
+                                         (let [{:keys [should-stop websocket-connection]} client]
+                                           ;; Ensure disconnect state is immediately registered as connecting.
+                                           (log/debug (i18n/trs "Sleeping for up to {0} ms to retry" retry-sleep))
+                                           (reset! websocket-connection
+                                                   (future
+                                                     (if (and retry? (not (deref should-stop initial-sleep nil)))
+                                                       (-make-connection client)
+                                                       true)))))
+                             :on-text (fn [ws text]
+                                        (log/debug (i18n/trs "Received text message"))
+                                        (dispatch-message client (message/decode text)))}
+                   client-endpoint (jetty10-websockets/proxy-ws-adapter handlers certs server)
+                   request-path-uri (URI/create server)]
+               (create-websocket-session websocket-client client-endpoint request-path-uri))
+             (catch java.util.concurrent.ExecutionException exception
+               ; ExecutionException is a general exception, rethrow the inner exception
+               (throw (.getCause exception))))
+           (catch org.eclipse.jetty.websocket.api.exceptions.UpgradeException exception
+             (if (> (.getResponseStatusCode exception) 0)
+               (do
+                 (log/warn exception
+                           (i18n/trs
+                            "WebSocket Upgrade handshake failed with HTTP {0}. Sleeping for up to {1} ms to retry"
+                            (.getResponseStatusCode exception) retry-sleep))
+                 (deref should-stop retry-sleep nil))
+               (throw exception)))
+           (catch javax.net.ssl.SSLHandshakeException exception
+             (log/warn exception (i18n/trs "TLS Handshake failed. Sleeping for up to {0} ms to retry" retry-sleep))
+             (deref should-stop retry-sleep nil))
+           (catch java.net.ConnectException exception
                 ;; The following will produce "Didn't get connected. ..."
                 ;; The apostrophe needs to be duplicated (even in the translations).
-                (log/debug exception (i18n/trs "Didn''t get connected. Sleeping for up to {0} ms to retry" retry-sleep))
-                (deref should-stop retry-sleep nil))
-              (catch java.io.IOException exception
-                (log/debug exception (i18n/trs "Connection closed while establishing connection. Sleeping for up to {0} ms to reconnect" retry-sleep))
-                (deref should-stop retry-sleep nil))
-              (catch Object _
-                (log/error (:throwable &throw-context) (i18n/trs "Unexpected error"))
-                (throw+)))
+             (log/debug exception (i18n/trs "Didn''t get connected. Sleeping for up to {0} ms to retry" retry-sleep))
+             (deref should-stop retry-sleep nil))
+           (catch java.io.IOException exception
+             (log/debug exception (i18n/trs "Connection closed while establishing connection. Sleeping for up to {0} ms to reconnect" retry-sleep))
+             (deref should-stop retry-sleep nil))
+           (catch Object o
+             (log/error (:throwable &throw-context) (i18n/trs "Unexpected error"))
+             (throw+)))
           (recur (min maximum-sleep (* retry-sleep sleep-multiplier)) (promise))))))
 
 (s/defn -wait-for-connection :- (s/maybe Client)
@@ -207,7 +222,7 @@
       (do (log/debug (i18n/trs "refusing to send message on unconnected session"))
           (throw+ {:type ::not-connected}))
       (try
-        (ws/send-msg @@websocket-connection (message/encode message))
+        (.sendString (.getRemote @@websocket-connection) (message/encode message))
         (catch java.util.concurrent.ExecutionException exception
           (log/debug exception (i18n/trs "exception on the connection while attempting to send a message"))
           (throw+ {:type ::not-connected}))))
@@ -228,11 +243,15 @@
       ;; during shutdown. The websocket-connection atom could be reset to true between checking
       ;; connected? and dereferencing the atom to close the connection.
       (let [connection @websocket-connection]
-        (if (-connection-connected? connection)
-          (ws/close @connection)))
+        (when (-connection-connected? connection)
+          (.close @connection)))
       (catch java.util.concurrent.ExecutionException exception
         (log/debug exception (i18n/trs "exception while closing the connection; connection already closed"))))
-    (.stop websocket-client))
+    ;; Stop websocketclient on a new thread it is not running on
+    (try
+      @(future (LifeCycle/stop websocket-client))
+      (catch Exception e
+        (log/debug e (i18n/trs "exception caught when stopping WebSocketClient.")))))
   true)
 
 (def SslFiles
@@ -258,23 +277,29 @@
     (ssl-utils/pems->ssl-context cert private-key cacert)))
 
 ;; private helpers for the ssl/websockets setup
-(s/defn ^:private make-ssl-context :- SslContextFactory
-  "Returns an SslContextFactory that does client authentication based on the
-  client certificate named"
+(s/defn ^:private make-ssl-context :- SslContextFactory$Client
+  "Returns an SslContextFactory$Client that does client authentication based on the
+  client certificate named."
   [params]
-  (let [factory (SslContextFactory.)
+  (let [factory (SslContextFactory$Client.)
         ssl-context (get-ssl-context (:ssl-context params))]
     (.setSslContext factory ssl-context)
-    (.setNeedClientAuth factory true)
+    ;;(.setNeedClientAuth factory true) ;; not available with $Client, problem?
     (.setEndpointIdentificationAlgorithm factory "HTTPS")
     factory))
 
 (s/defn ^:private make-websocket-client :- WebSocketClient
-  "Returns a WebSocketClient with the correct SSL context"
-  [ssl-context :- SslContextFactory max-message-size :- (s/maybe s/Int)]
-  (let [client (WebSocketClient. ssl-context)]
-    (if max-message-size
-      (.setMaxTextMessageSize (.getPolicy client) max-message-size))
+  "Returns a WebSocketClient with the correct SSL context."
+  [ssl-context :- SslContextFactory$Client max-message-size :- (s/maybe s/Int)]
+  (let [client-connector (doto (ClientConnector.)
+                           (.setSslContextFactory ssl-context))
+        http-client-connection-factory HttpClientConnectionFactory/HTTP11
+        client (WebSocketClient.
+                (HttpClient.
+                 (HttpClientTransportDynamic. client-connector
+                                              (into-array ClientConnectionFactory$Info [http-client-connection-factory]))))]
+    (when max-message-size
+      (.setMaxTextMessageSize client max-message-size))
     (.start client)
     client))
 
@@ -293,12 +318,15 @@
    The certificate file specified can provide either a single certificate,
    or a certificate chain (with the first entry being the client's certificate)."
   [params :- ConnectParams handlers :- Handlers]
-   (let [{:keys [cert type server user-data retry?] :or {retry? true}} params
+   (let [{:keys [ssl-context cert type server user-data retry?] :or {retry? true}} params
          defaulted-type (or type "agent")
          ssl-context-factory (make-ssl-context params)
+         certs (when (:cert ssl-context)
+                 (ssl-utils/pem->certs (:cert ssl-context)))
          client (map->Client {:server (append-client-type server defaulted-type)
                               :websocket-client (make-websocket-client ssl-context-factory
                                                                        (:max-message-size params))
+                              :certs certs
                               :websocket-connection (atom (future true))
                               :on-close-cb (:on-close-cb params)
                               :on-connect-cb (:on-connect-cb params)

@@ -2,9 +2,7 @@
   (:require [clojure.test :refer :all]
             [puppetlabs.pcp.client :refer :all :as client]
             [puppetlabs.pcp.message-v2 :as message]
-            [slingshot.test]
-            [schema.test :as st]
-            [gniazdo.core :as g]))
+            [slingshot.test]))
 
 (defn make-test-client
   "A dummied up client object"
@@ -50,7 +48,7 @@
              (dispatch-message client (message/make-message :message_type "bar")))))))
 
 (deftest make-connection-test
-  (with-redefs [gniazdo.core/connect (constantly "awesome")]
+  (with-redefs [create-websocket-session (constantly "awesome")]
     (is (= "awesome"
            (-make-connection (make-test-client))))))
 
@@ -69,28 +67,25 @@
 (deftest upgrade-exception-retryable-with-http-status
   (testing "UpgradeException with status code > 0 retries"
     (let [retry-count (atom 0)]
-      (with-redefs [g/connect (fn [url & opts]
-                                (do
-                                  (when (> @retry-count 0)
-                                    (throw (InterruptedException. "test passed")))
-                                  (swap! retry-count inc)
-                                  (throw (org.eclipse.jetty.websocket.api.UpgradeException.
-                                           (java.net.URI. url)
-                                           503
-                                           "test"))))]
+      (with-redefs [create-websocket-session (fn [_websocket-client _client-endpoint uri]
+                                               (do
+                                                 (when (> @retry-count 0)
+                                                   (throw (InterruptedException. "test passed")))
+                                                 (swap! retry-count inc)
+                                                 (throw (java.util.concurrent.ExecutionException.
+                                                         (org.eclipse.jetty.websocket.api.exceptions.UpgradeException. uri 503 "test")))))]
         (is (thrown-with-msg? InterruptedException #"test passed"
                               (-make-connection (make-test-client))))))))
 
 (deftest upgrade-exception-not-retryable
   (testing "UpgradeException with status code 0 does not retry"
     (let [retry-count (atom 0)]
-      (with-redefs [g/connect (fn [url & opts]
-                                (do
-                                  (when (> @retry-count 0)
-                                    (throw (InterruptedException. "test failed")))
-                                  (swap! retry-count inc)
-                                  (throw (org.eclipse.jetty.websocket.api.UpgradeException.
-                                           (java.net.URI. url)
-                                           (Exception. "unretryable exception")))))]
+      (with-redefs [create-websocket-session (fn [_websocket-client _client-endpoint uri]
+                                               (do
+                                                 (when (> @retry-count 0)
+                                                   (throw (InterruptedException. "test failed")))
+                                                 (swap! retry-count inc)
+                                                 (throw (java.util.concurrent.ExecutionException.
+                                                         (org.eclipse.jetty.websocket.api.exceptions.UpgradeException. uri 0 "unretryable exception")))))]
         (is (thrown-with-msg? Exception #"unretryable exception"
                               (-make-connection (make-test-client))))))))

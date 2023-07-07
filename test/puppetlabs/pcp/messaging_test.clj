@@ -5,7 +5,6 @@
             [puppetlabs.pcp.client :as client]
             [puppetlabs.pcp.message-v2 :as message]
             [puppetlabs.ssl-utils.core :as ssl-utils]
-            [puppetlabs.experimental.websockets.client :as websockets-client]
             [puppetlabs.trapperkeeper.services.authorization.authorization-service :refer [authorization-service]]
             [puppetlabs.trapperkeeper.services.metrics.metrics-service :refer [metrics-service]]
             [puppetlabs.trapperkeeper.services.status.status-service :refer [status-service]]
@@ -13,7 +12,8 @@
             [puppetlabs.trapperkeeper.services.webrouting.webrouting-service :refer [webrouting-service]]
             [puppetlabs.trapperkeeper.services :refer [service-context]]
             [puppetlabs.trapperkeeper.app :refer [get-service]]
-            [puppetlabs.trapperkeeper.services.webserver.jetty9-service :refer [jetty9-service]]
+            [puppetlabs.trapperkeeper.services.webserver.jetty10-service :refer [jetty10-service]]
+            [puppetlabs.trapperkeeper.services.websocket-session :as websocket-session]
             [puppetlabs.trapperkeeper.testutils.bootstrap :refer [with-app-with-config]]
             [puppetlabs.trapperkeeper.testutils.logging
              :refer [with-log-level with-logging-to-atom with-log-suppressed-unless-notable]]
@@ -99,7 +99,7 @@
 (def broker-services
   [authorization-service
    broker-service
-   jetty9-service
+   jetty10-service
    webrouting-service
    metrics-service
    status-service
@@ -178,7 +178,7 @@
                                                                     (get-service app :BrokerService))))))]
             (while (empty? (inventory))
               (Thread/sleep 100))
-            (websockets-client/close! (:websocket (first (vals (inventory)))))
+            (websocket-session/close! (:websocket (first (vals (inventory)))))
             (Thread/sleep 1000)
             (is (= 1 @calls))))))))
 
@@ -275,7 +275,7 @@
           (deliver (:should-stop client) true)
           (eventually-logged?
             "puppetlabs.pcp.client" :debug
-            (partial re-find #"WebSocket closed 1009 Text message size \[185\] exceeds maximum size \[128\]")
+            (partial re-find #"WebSocket closed 1009 Text message too large: \(actual\) 185 \> \(configured max text message size\) 128")
             (let [connected (client/wait-for-connection client 4000)]
               (client/send! client data)
               (is connected))))))))
