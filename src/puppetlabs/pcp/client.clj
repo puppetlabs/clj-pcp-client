@@ -12,6 +12,7 @@
   (:import  (clojure.lang Atom)
             (java.net URI)
             (java.nio ByteBuffer)
+            (java.util.concurrent CountDownLatch)
             (org.eclipse.jetty.io ClientConnector ClientConnectionFactory$Info)
             (org.eclipse.jetty.client.dynamic HttpClientTransportDynamic)
             (org.eclipse.jetty.websocket.api Session)
@@ -115,18 +116,21 @@
   current set of connections as long as the 'should-stop' promise has
   not been delivered. Will keep a connection alive, or detect a
   stalled connection earlier."
-  [websocket-client should-stop]
+  [^WebSocketClient websocket-client should-stop]
   (while (not (deref should-stop 15000 false))
     (let [sessions (.getOpenSessions websocket-client)]
       (log/debug (i18n/trs "Sending WebSocket ping"))
-      (doseq [session sessions]
+      (doseq [^Session session sessions]
         ;; sessions in the CLOSING state are in OpenSessions
         (when (.isOpen session)
-          (.. session (getRemote) (sendPing (ByteBuffer/allocate 1)))))))
+          (-> session
+              .getRemote
+              (.sendPing (ByteBuffer/allocate 1)))))
+      (log/trace (i18n/trs "done sending WebSocket ping"))))
   (log/debug (i18n/trs "WebSocket heartbeat task is about to finish")))
 
 (s/defn create-websocket-session :- Session
-  [websocket-client client-endpoint request-path-uri]
+  [^WebSocketClient websocket-client client-endpoint request-path-uri]
    (.get (.connect websocket-client client-endpoint request-path-uri)))
 
 (s/defn -make-connection :- Session
@@ -146,8 +150,13 @@
            (try
              (log/debug (i18n/trs "Making connection to {0}" server))
              (let [handlers {:on-connect (fn [ws]
-                                           (log/debug (i18n/trs "WebSocket connected, heartbeat task starting"))
-                                           (.start (Thread. (partial heartbeat websocket-client stop-heartbeat)))
+                                           (log/debug (i18n/trs "WebSocket connected, heartbeat task starting."))
+                                           (future
+                                             (try
+                                               (heartbeat websocket-client stop-heartbeat)
+                                               (log/debug (i18n/trs "Websocket heartbeat task stopping."))
+                                               (catch Exception e
+                                                 (log/error e (i18n/trs "Failure during websocket heartbeat.")))))
                                            (when on-connect-cb (on-connect-cb client)))
                              :on-error (fn [ws error]
                                          ;; It may be a bug in jetty but connection errors result in two UpgradeExceptions passed to the
@@ -164,7 +173,7 @@
                                          (when on-close-cb (on-close-cb client))
                                          (let [{:keys [should-stop websocket-connection]} client]
                                            ;; Ensure disconnect state is immediately registered as connecting.
-                                           (log/debug (i18n/trs "Sleeping for up to {0} ms to retry" retry-sleep))
+                                           (log/info (i18n/trs "Sleeping for up to {0} ms to retry" retry-sleep))
                                            (reset! websocket-connection
                                                    (future
                                                      (if (and retry? (not (deref should-stop initial-sleep nil)))
@@ -173,7 +182,8 @@
                              :on-text (fn [ws text]
                                         (log/debug (i18n/trs "Received text message"))
                                         (dispatch-message client (message/decode text)))}
-                   client-endpoint (jetty10-websockets/proxy-ws-adapter handlers certs server)
+                   closureLatch (CountDownLatch. 1)
+                   client-endpoint (jetty10-websockets/proxy-ws-adapter handlers certs server closureLatch)
                    request-path-uri (URI/create server)]
                (create-websocket-session websocket-client client-endpoint request-path-uri))
              (catch java.util.concurrent.ExecutionException exception
@@ -191,13 +201,14 @@
            (catch javax.net.ssl.SSLHandshakeException exception
              (log/warn exception (i18n/trs "TLS Handshake failed. Sleeping for up to {0} ms to retry" retry-sleep))
              (deref should-stop retry-sleep nil))
-           (catch java.net.ConnectException exception
-                ;; The following will produce "Didn't get connected. ..."
-                ;; The apostrophe needs to be duplicated (even in the translations).
-             (log/debug exception (i18n/trs "Didn''t get connected. Sleeping for up to {0} ms to retry" retry-sleep))
+           (catch java.net.ConnectException e
+             ;; The following will produce "Didn't get connected. ..."
+             ;; The apostrophe needs to be duplicated (even in the translations).
+             (log/debug e (i18n/trs "Connection failed."))
+             (log/info (i18n/trs "Didn''t get connected. Sleeping for up to {0} ms to retry" retry-sleep))
              (deref should-stop retry-sleep nil))
-           (catch java.io.IOException exception
-             (log/debug exception (i18n/trs "Connection closed while establishing connection. Sleeping for up to {0} ms to reconnect" retry-sleep))
+           (catch java.io.IOException e
+             (log/debug e (i18n/trs "Connection closed while establishing connection. Sleeping for up to {0} ms to reconnect" retry-sleep))
              (deref should-stop retry-sleep nil))
            (catch Object o
              (log/error (:throwable &throw-context) (i18n/trs "Unexpected error"))
@@ -247,11 +258,11 @@
           (.close @connection)))
       (catch java.util.concurrent.ExecutionException exception
         (log/debug exception (i18n/trs "exception while closing the connection; connection already closed"))))
-    ;; Stop websocketclient on a new thread it is not running on
-    (try
-      @(future (LifeCycle/stop websocket-client))
-      (catch Exception e
-        (log/debug e (i18n/trs "exception caught when stopping WebSocketClient.")))))
+    ;; Stop WebSocketClient on a new thread it is not running on
+    (future
+      (try (LifeCycle/stop websocket-client)
+           (catch Exception e
+             (log/debug e (i18n/trs "Exception caught when stopping WebSocketClient."))))))
   true)
 
 (def SslFiles
@@ -276,8 +287,8 @@
   (let [{:keys [cert private-key cacert]} ssl-files]
     (ssl-utils/pems->ssl-context cert private-key cacert)))
 
-;; private helpers for the ssl/websockets setup
-(s/defn ^:private make-ssl-context :- SslContextFactory$Client
+;; public helpers for the ssl/websockets setup, also used by pcp-broker's test client
+(s/defn ^:public make-ssl-context :- SslContextFactory$Client
   "Returns an SslContextFactory$Client that does client authentication based on the
   client certificate named."
   [params]
@@ -288,7 +299,7 @@
     (.setEndpointIdentificationAlgorithm factory "HTTPS")
     factory))
 
-(s/defn ^:private make-websocket-client :- WebSocketClient
+(s/defn ^:public make-websocket-client :- WebSocketClient
   "Returns a WebSocketClient with the correct SSL context."
   [ssl-context :- SslContextFactory$Client max-message-size :- (s/maybe s/Int)]
   (let [client-connector (doto (ClientConnector.)
@@ -303,6 +314,7 @@
     (.start client)
     client))
 
+;; private helpers for the ssl/websockets setup
 (defn ^:private append-client-type
   "Append client type to a ws connection Uri, accounting for possible trailing
    slash."
