@@ -1,3 +1,8 @@
+## 2.0.0
+
+This a major breaking release.
+* update to using jetty 10 via the trapperkeeper-webserver-jetty10 service.
+
 ## 1.4.0
 
 This is a maintenance release.
