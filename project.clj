@@ -1,6 +1,6 @@
 (def jetty-version "10.0.18")
 
-(defproject puppetlabs/pcp-client "2.0.0"
+(defproject puppetlabs/pcp-client "2.0.1-SNAPSHOT"
   :description "client library for PCP"
   :url "https://github.com/puppetlabs/clj-pcp-client"
   :license {:name "Apache License, Version 2.0"
