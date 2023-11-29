@@ -7,7 +7,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: puppetlabs.pcp_client \n"
-"X-Git-Ref: 12f9c761231fee831f1cf0a6fdd5d57581f4bdc3\n"
+"X-Git-Ref: aaf949c634be17485ef5ee7884d83d429995b0fe\n"
 "Report-Msgid-Bugs-To: docs@puppet.com\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
@@ -31,6 +31,10 @@ msgid "Sending WebSocket ping"
 msgstr ""
 
 #: src/puppetlabs/pcp/client.clj
+msgid "done sending WebSocket ping"
+msgstr ""
+
+#: src/puppetlabs/pcp/client.clj
 msgid "WebSocket heartbeat task is about to finish"
 msgstr ""
 
@@ -39,7 +43,15 @@ msgid "Making connection to {0}"
 msgstr ""
 
 #: src/puppetlabs/pcp/client.clj
-msgid "WebSocket connected, heartbeat task starting"
+msgid "WebSocket connected, heartbeat task starting."
+msgstr ""
+
+#: src/puppetlabs/pcp/client.clj
+msgid "Websocket heartbeat task stopping."
+msgstr ""
+
+#: src/puppetlabs/pcp/client.clj
+msgid "Failure during websocket heartbeat."
 msgstr ""
 
 #: src/puppetlabs/pcp/client.clj
@@ -73,6 +85,10 @@ msgstr ""
 #. The following will produce "Didn't get connected. ..."
 #. The apostrophe needs to be duplicated (even in the translations).
 #: src/puppetlabs/pcp/client.clj
+msgid "Connection failed."
+msgstr ""
+
+#: src/puppetlabs/pcp/client.clj
 msgid "Didn''t get connected. Sleeping for up to {0} ms to retry"
 msgstr ""
 
@@ -104,4 +120,8 @@ msgstr ""
 
 #: src/puppetlabs/pcp/client.clj
 msgid "exception while closing the connection; connection already closed"
+msgstr ""
+
+#: src/puppetlabs/pcp/client.clj
+msgid "Exception caught when stopping WebSocketClient."
 msgstr ""
