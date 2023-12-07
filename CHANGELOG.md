@@ -1,3 +1,6 @@
+## 2.0.1
+* add missing certs entry to Client record
+
 ## 2.0.0
 
 This a major breaking release.

@@ -67,7 +67,8 @@
    retry?
    should-stop ;; promise that when delivered means should stop
    websocket-connection ;; atom of a promise that will be a connection or true
-   websocket-client]
+   websocket-client
+   certs]
   {(s/optional-key :user-data) s/Any} ;; a field for user data
   ClientInterface
   (connecting? [client] (-connecting? client))
@@ -330,7 +331,7 @@
    The certificate file specified can provide either a single certificate,
    or a certificate chain (with the first entry being the client's certificate)."
   [params :- ConnectParams handlers :- Handlers]
-   (let [{:keys [ssl-context cert type server user-data retry?] :or {retry? true}} params
+   (let [{:keys [ssl-context type server user-data retry?] :or {retry? true}} params
          defaulted-type (or type "agent")
          ssl-context-factory (make-ssl-context params)
          certs (when (:cert ssl-context)
