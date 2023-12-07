@@ -5,10 +5,10 @@ on:
   push:
     branches:
       - main
-    paths: '*' #['src/**','test/**']
+    paths: '*'
   pull_request:
     types: [opened, reopened, edited, synchronize]
-    paths: '*' #['src/**','test/**']
+    paths: '*'
 
 jobs:
   run-lein-tests:
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        java: [ '8', '11', '17' ]
+        java: [ '11', '17' ]
     steps:
       - name: Check out repository code
         uses: actions/checkout@v3
