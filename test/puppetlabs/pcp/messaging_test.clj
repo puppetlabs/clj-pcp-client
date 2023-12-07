@@ -19,6 +19,7 @@
              :refer [with-log-level with-logging-to-atom with-log-suppressed-unless-notable]]
             [slingshot.test]
             [schema.test :as st]))
+(use-fixtures :once st/validate-schemas)
 
 (def broker-config
   "A broker with ssl and own spool"

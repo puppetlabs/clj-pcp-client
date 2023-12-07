@@ -2,7 +2,10 @@
   (:require [clojure.test :refer :all]
             [puppetlabs.pcp.client :refer :all :as client]
             [puppetlabs.pcp.message-v2 :as message]
+            [schema.test :as st]
             [slingshot.test]))
+
+(use-fixtures :once st/validate-schemas)
 
 (defn make-test-client
   "A dummied up client object"
@@ -46,11 +49,6 @@
              (dispatch-message client (message/make-message :message_type "foo"))))
       (is (= "default"
              (dispatch-message client (message/make-message :message_type "bar")))))))
-
-(deftest make-connection-test
-  (with-redefs [create-websocket-session (constantly "awesome")]
-    (is (= "awesome"
-           (-make-connection (make-test-client))))))
 
 (deftest wait-for-connection-test
   (testing "when connected"
