@@ -1,3 +1,10 @@
+## 2.1.0
+* update to clj-parent 7.3.7
+* allow tk-webserver-jetty10 version to be determined form clj-parent
+* remove direct dependencies on jetty-10 websocket APIs, and allow tk-ws-jetty10 to determine the version of jetty
+* regenerate certificates for testing that had expired
+* update pcp-broker version to 2.0.2 to allow versions to be managed by clj-parent
+
 ## 2.0.1
 * add missing certs entry to Client record
 
