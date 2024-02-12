@@ -1,6 +1,4 @@
-(def jetty-version "10.0.18")
-
-(defproject puppetlabs/pcp-client "2.0.2-SNAPSHOT"
+(defproject puppetlabs/pcp-client "2.1.0-SNAPSHOT"
   :description "client library for PCP"
   :url "https://github.com/puppetlabs/clj-pcp-client"
   :license {:name "Apache License, Version 2.0"
@@ -10,14 +8,13 @@
 
   :min-lein-version "2.7.1"
 
-  :parent-project {:coords [puppetlabs/clj-parent "7.2.7"]
+  :parent-project {:coords [puppetlabs/clj-parent "7.3.7"]
                    :inherit [:managed-dependencies]}
 
   :dependencies [[puppetlabs/pcp-common "1.3.5" :exclusions [org.tukaani/xz]]
-                 ;; We only care about org.eclipse.jetty.websocket/websocket-client
-                 [com.puppetlabs/trapperkeeper-webserver-jetty10 "1.0.4"]
-                 [org.eclipse.jetty.websocket/websocket-jetty-client ~jetty-version]
-                 [org.eclipse.jetty.websocket/websocket-jetty-api ~jetty-version]
+                 ;; the client, api, and utility namespaces are used from jetty 10, use the tk-ws-j10 project to manage the
+                 ;; versions centrally.
+                 [com.puppetlabs/trapperkeeper-webserver-jetty10]
 
                  [org.clojure/clojure]
                  [org.clojure/tools.logging]
@@ -26,13 +23,13 @@
                  [prismatic/schema]
                  [puppetlabs/trapperkeeper-status]
                  [puppetlabs/trapperkeeper-scheduler]
-                 [puppetlabs/trapperkeeper-metrics "2.0.0"]
+                 [puppetlabs/trapperkeeper-metrics]
                  [slingshot]
                  [puppetlabs/i18n]]
 
   :plugins [[lein-release "1.0.5" :exclusions [org.clojure/clojure]]
-            [lein-parent "0.3.4"]
-            [puppetlabs/i18n "0.8.0"]]
+            [lein-parent "0.3.9"]
+            [puppetlabs/i18n "0.9.2"]]
 
   :lein-release {:scm :git
                  :deploy-via :lein-deploy}
@@ -45,18 +42,18 @@
   :test-paths ["test" "test-resources"]
 
   :profiles {:dev {:source-paths ["dev"]
-                   :dependencies [[puppetlabs/pcp-broker "2.0.0"]
+                   :dependencies [[puppetlabs/pcp-broker "2.0.2"]
                                   [org.clojure/tools.nrepl]
                                   [org.bouncycastle/bcpkix-jdk18on]
                                   [puppetlabs/trapperkeeper]
                                   [puppetlabs/trapperkeeper :classifier "test" :scope "test"]
                                   [puppetlabs/kitchensink :classifier "test" :scope "test"]]}
-             :test-base [:dev
-                         {:source-paths ["test-resources"]
-                          :test-paths ^:replace ["test"]}]
-             :test-schema-validation [:test-base
-                                      {:injections [(do
-                                                      (require 'schema.core)
-                                                      (schema.core/set-fn-validation! true))]}]}
+             :schema-validation {:injections [(do
+                                                (require 'schema.core)
+                                                (schema.core/set-fn-validation! true))]}
+             :test-base {:source-paths ["test-resources"]
+                         :test-paths ^:replace ["test"]}
+             :test-schema-validation [:dev :test-base :schema-validation]}
+
 
   :aliases {"test-all" ["with-profile" "test-base:test-schema-validation" "test"]})
