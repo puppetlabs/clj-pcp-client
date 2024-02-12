@@ -2,15 +2,11 @@
   (:require [clojure.tools.logging :as log]
             [puppetlabs.pcp.message-v2 :as message :refer [Message]]
             [puppetlabs.trapperkeeper.services.webserver.jetty10-websockets :as jetty10-websockets]
-            [puppetlabs.trapperkeeper.services.websocket-session :as websocket-session]
-            [puppetlabs.pcp.protocol :as p]
             [puppetlabs.ssl-utils.core :as ssl-utils]
             [schema.core :as s]
-            [puppetlabs.i18n.core :as i18n]
-            [puppetlabs.pcp.client :as client])
+            [puppetlabs.i18n.core :as i18n])
   (:use [slingshot.slingshot :only [throw+ try+]])
-  (:import  (clojure.lang Atom)
-            (java.net URI)
+  (:import  (java.net URI)
             (java.nio ByteBuffer)
             (java.util.concurrent CountDownLatch)
             (org.eclipse.jetty.io ClientConnector ClientConnectionFactory$Info)
@@ -21,8 +17,7 @@
             (org.eclipse.jetty.client.http HttpClientConnectionFactory HttpClientConnectionFactory$HTTP11)
             (org.eclipse.jetty.util.component LifeCycle)
             (org.eclipse.jetty.util.ssl SslContextFactory$Client)
-            (javax.net.ssl SSLContext)
-            (java.security KeyStore)))
+            (javax.net.ssl SSLContext)))
 
 (defprotocol ClientInterface
   "client interface - make one with connect"
